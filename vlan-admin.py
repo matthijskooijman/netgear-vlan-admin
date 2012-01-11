@@ -6,8 +6,10 @@ import sys
 import os.path
 import pickle
 import configobj
+import validate
 from BeautifulSoup import BeautifulSoup
 import urwid
+from StringIO import StringIO
 
 config_filename = os.path.expanduser("~/.config/vlan-admin.conf")
 
@@ -774,8 +776,18 @@ def remove_html_tags(data):
 write = True
 load = not write
 
+# This is the structure of the config file. We apply validation to
+# make sure all sections are created, even when the config file starts
+# out empty.
+configspec = """
+[vlan_names]
+__many__ = string()
+"""
+
 # Create the switch object
-config = configobj.ConfigObj(infile = config_filename, create_empty = True, encoding='UTF8')
+config = configobj.ConfigObj(infile = config_filename, configspec = StringIO(configspec), create_empty = True, encoding='UTF8')
+config.validate(validate.Validator())
+
 if load:
     # Load the switch object from a debug file
     f = open('switch.dump', 'r')
