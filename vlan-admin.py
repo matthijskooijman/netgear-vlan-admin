@@ -119,10 +119,11 @@ class FS726T(object):
         """
 
         # Apparently, login is done on an IP basis, not tracked by cookies.
-        data = urllib.urlencode({
-            'passwd': self.password,
-            'post_url': "/cgi/device",
-        })
+        # Do not change the order of parameters, that breaks the request :-S
+        data = urllib.urlencode([
+            ('passwd', self.password),
+            ('post_url', "/cgi/device"),
+        ])
         html = self.request("/cgi/device", data)
 
         # Succesful login
