@@ -190,10 +190,15 @@ class FS726T(object):
 
     def request(self, path, data = None):
         url = "http://%s%s" % (self.address, path)
-        if data:
+
+        if data and not isinstance(data, basestring):
+            data = urllib.urlencode(data)
+
+        if data != None:
             log("HTTP POST request to %s (POST data %s)" % (url, str(data)))
         else:
             log("HTTP GET request to %s" % url)
+
         response = urllib2.urlopen(url, data).read()
         log('Done')
 
@@ -212,10 +217,10 @@ class FS726T(object):
 
         # Apparently, login is done on an IP basis, not tracked by cookies.
         # Do not change the order of parameters, that breaks the request :-S
-        data = urllib.urlencode([
+        data = [
             ('passwd', self.password),
             ('post_url', "/cgi/device"),
-        ])
+        ]
         html = self.request("/cgi/device", data)
 
         # Succesful login
@@ -269,11 +274,11 @@ class FS726T(object):
         Change the name of a port.
         """
         # Do not change the order of parameters, that breaks the request :-S
-        data = urllib.urlencode([
+        data = [
             ('portset', port.num - 1), # "portset" numbers from 0
             ('port_des', name),
             ('post_url', '/cgi/portdetail'),
-        ])
+        ]
 
         self.request("/cgi/portdetail=%s" % (port.num - 1), data)
 
