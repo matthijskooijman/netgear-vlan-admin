@@ -23,6 +23,59 @@ def log(text):
 class LoginException(Exception):
     pass
 
+class Change(object):
+    def __init__(self, what, how):
+        """
+        Creates a new change object, containing a what and a how.
+        Subclasses should define what these mean, this class only stores
+        the values.
+        """
+        self.what = what
+        self.how = how
+
+class VlanNameChange(Change):
+    """
+    Record the change of a vlan name. Constructor arguments:
+    what: Vlan object
+    how: new name (string)
+    """
+
+    def merge_with(self, other):
+        if (isinstance(other, VlanNameChange) and
+            other.what == self.what):
+            # This change replaces the other change. Note this actually
+            # means this changes ends up in the position of the other
+            # change in the changelist.
+            return (None, self)
+
+        # In all other cases, keep all of them
+        return (self, other)
+
+    def __unicode__(self):
+        return 'Changing vlan %d name to: %s' % (self.what.dotq_id, self.how)
+
+class PortDescriptionChange(Change):
+    """
+    Record the change of a port description. Constructor arguments:
+    what: Port object
+    how: new description (string)
+    """
+
+    def merge_with(self, other):
+        if (isinstance(other, PortDescriptionChange) and
+            other.what == self.what):
+            # This change replaces the other change. Note this actually
+            # means this changes ends up in the position of the other
+            # change in the changelist.
+            return (None, self)
+
+        # In all other cases, keep all of them
+        return (self, other)
+
+    def __unicode__(self):
+        return 'Changing port %d description to: %s' % (self.what.num, self.how)
+
+
 class Vlan(object):
     def __init__(self, switch, internal_id, dotq_id):
         """
@@ -34,9 +87,9 @@ class Vlan(object):
         self.internal_id = internal_id
         self.dotq_id = dotq_id
         # Use the dotq_id, since that's constant over time
-        self._config_key = "vlan%d" % dotq_id
+        self.config_key = "vlan%d" % dotq_id
         try:
-            self._name = self.switch.config['vlan_names'][self._config_key]
+            self._name = self.switch.config['vlan_names'][self.config_key]
         except KeyError:
             self._name = ''
 
@@ -49,6 +102,7 @@ class Vlan(object):
     def name(self, value):
         if value != self._name:
             self._name = value
+            self.switch.queue_change(VlanNameChange(self, value))
 
     def __repr__(self):
         return u"VLAN %s: %s (802.11q ID %s)" % (self.internal_id, self.name, self.dotq_id)
@@ -85,11 +139,15 @@ class Port(object):
     def description(self, value):
         if value != self._description:
             self._description = value
+            self.switch.queue_change(PortDescriptionChange(self, value))
 
     def __repr__(self):
         return u"Port %s: %s (speed: %s, speed setting: %s, flow control: %s, link status = %s)" % (self.num, self.description, self.speed, self.speed_setting, self.flow_control, self.link_status)
 
 class FS726T(object):
+    # Autoregister signals
+    __metaclass__ = urwid.MetaSignals
+    signals = ['changelist_changed']
 
     def __init__(self, address = None, password = None, config = None):
         self.address = address
@@ -97,8 +155,38 @@ class FS726T(object):
         self.ports = None
         self.vlans = None
         self.config = config
+        self.changes = []
 
         super(FS726T, self).__init__()
+
+    def _emit(self, name, *args):
+        """
+        Convenience function to emit signals with self as first
+        argument.
+        """
+        urwid.emit_signal(self, name, self, *args)
+
+    def queue_change(self, new_change):
+        for i in range(len(self.changes)):
+            change = self.changes[i]
+            (new_change, change_) = new_change.merge_with(change)
+            if change_ is None:
+                # The new changes makes the old change unneeded (e.g.,
+                # changing a port description twice).
+                self.changes.remove(change)
+            elif not change_ == change:
+                self.changes[i] = change_
+
+            if new_change is None:
+                # The new change is no longer needed itself either
+                # (e.g., deleting a previously created vlan). Don't
+                # insert it, and don't try further merges either
+                break
+
+        if new_change:
+            self.changes.append(new_change)
+        # Always call this, just in case something changed
+        self._emit('changelist_changed')
 
     def request(self, path, data = None):
         url = "http://%s%s" % (self.address, path)
@@ -151,6 +239,39 @@ class FS726T(object):
                 sys.stderr.write("Ignoring logout error, we're probably not logged in.\n")
             else:
                 raise
+
+
+    def commit_all(self):
+        def changes_of_type(type):
+            return [c for c in self.changes if isinstance(c, type)]
+
+        write_config = False
+
+        for change in self.changes:
+            if isinstance(change, PortDescriptionChange):
+                self.commit_port_description_change(change.what, change.how)
+            elif isinstance(change, VlanNameChange):
+                self.config['vlan_names'][change.what.config_key] = change.how
+                write_config = True
+
+        if write_config:
+            self.config.write()
+
+        self.changes = []
+        self._emit('changelist_changed')
+
+    def commit_port_description_change(self, port, name):
+        """
+        Change the name of a port.
+        """
+        # Do not change the order of parameters, that breaks the request :-S
+        data = urllib.urlencode([
+            ('portset', port.num - 1), # "portset" numbers from 0
+            ('port_des', name),
+            ('post_url', '/cgi/portdetail'),
+        ])
+
+        self.request("/cgi/portdetail=%s" % (port.num - 1), data)
 
     def get_status(self):
         soup = BeautifulSoup(self.request("/cgi/device"), convertEntities=BeautifulSoup.HTML_ENTITIES)
@@ -487,6 +608,11 @@ class Interface(object):
 
         dbg = TopLine(debug, 'Debug')
 
+        self.changelist = urwid.Text('')
+        changelist = TopLine(self.changelist, 'Unsaved changes')
+        urwid.connect_signal(switch, 'changelist_changed', self.fill_changelist)
+        self.fill_changelist(switch)
+
         def matrix_focus_change(widget):
             self.fill_details(Interface.port_attrs, self.port_widgets, widget.port)
             self.fill_details(Interface.vlan_attrs, self.vlan_widgets, widget.vlan)
@@ -497,6 +623,7 @@ class Interface(object):
         body = urwid.Pile([('flow', switch_details), 
                            ('flow', matrix),
                            ('flow', bottom),
+                           ('flow', changelist),
                            ('flow', dbg),
                           ])
         body = urwid.Filler(body, valign = 'top')
@@ -590,6 +717,13 @@ class Interface(object):
                 else:
                     w.set_text(text)
 
+    def fill_changelist(self, switch):
+        if switch.changes:
+            text = u'\n'.join([unicode(c) for c in switch.changes])
+        else:
+            text = 'No changes'
+        self.changelist.set_text(text)
+
     def create_port_list(self):
         ports = urwid.SimpleListWalker([])
         for port in self.switch.ports.values():
@@ -607,8 +741,10 @@ class Interface(object):
     def unhandled_input(self, key):
         if key == 'q' or key == 'Q' or key == 'f10':
             raise urwid.ExitMainLoop()
-
-        log("Unhandled keypress: %s" % str(key))
+        elif key == 'f11':
+            self.switch.commit_all()
+        else:
+            log("Unhandled keypress: %s" % str(key))
 
         return False
 
