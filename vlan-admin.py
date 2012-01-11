@@ -605,7 +605,7 @@ class Interface(object):
         return urwid.ListBox(ports)
 
     def unhandled_input(self, key):
-        if key == 'q' or key == 'Q':
+        if key == 'q' or key == 'Q' or key == 'f10':
             raise urwid.ExitMainLoop()
 
         log("Unhandled keypress: %s" % str(key))
