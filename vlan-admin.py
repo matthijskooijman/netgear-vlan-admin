@@ -280,6 +280,14 @@ class FS726T(object):
     def get_status(self):
         soup = BeautifulSoup(self.request("/cgi/device"), convertEntities=BeautifulSoup.HTML_ENTITIES)
 
+        try:
+            return self.parse_status(soup)
+        except AttributeError as e:
+            # Print HTML for debugging
+            print soup
+            raise
+
+    def parse_status(self, soup):
         #####################################
         # Parse switch information
         #####################################
