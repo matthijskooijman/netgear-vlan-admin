@@ -9,7 +9,6 @@ import configobj
 from BeautifulSoup import BeautifulSoup
 import urwid
 
-address = "192.168.1.253"
 config_filename = os.path.expanduser("~/.config/vlan-admin.conf")
 
 debug = urwid.Text('')
