@@ -200,6 +200,8 @@ class FS726T(object):
         if "<input type=submit value=' Login '>" in response:
             self.do_login()
             return self.request(path, data)
+        if "Only one user can login" in response:
+            raise LoginException("Can only login from a single IP address: Log out the other client first")
         return response
 
     def do_login(self):
