@@ -190,8 +190,10 @@ class FS726T(object):
 
     def request(self, path, data = None):
         url = "http://%s%s" % (self.address, path)
-        log("HTTP request to %s" % url)
-        log("POST data: %s" % str(data))
+        if data:
+            log("HTTP POST request to %s (POST data %s)" % (url, str(data)))
+        else:
+            log("HTTP GET request to %s" % url)
         response = urllib2.urlopen(url, data).read()
         log('Done')
 
