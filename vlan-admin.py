@@ -156,7 +156,7 @@ class Port(object):
 class FS726T(object):
     # Autoregister signals
     __metaclass__ = urwid.MetaSignals
-    signals = ['changelist_changed', 'details_changed', 'portlist_changed']
+    signals = ['changelist_changed', 'details_changed', 'portlist_changed', 'status_changed']
 
     def __init__(self, address = None, password = None, config = None):
         self.address = address
@@ -211,7 +211,10 @@ class FS726T(object):
         # Always call this, just in case something changed
         self._emit('changelist_changed')
 
-    def request(self, path, data = None):
+    def request(self, path, data = None, status = None):
+        if status:
+            self._emit('status_changed', status)
+
         url = "http://%s%s" % (self.address, path)
 
         if data and not isinstance(data, basestring):
@@ -227,7 +230,7 @@ class FS726T(object):
 
         if "<input type=submit value=' Login '>" in response:
             self.do_login()
-            return self.request(path, data)
+            return self.request(path, data, status)
         if "Only one user can login" in response:
             raise LoginException("Can only login from a single IP address: Log out the other client first")
         return response
@@ -244,7 +247,7 @@ class FS726T(object):
             ('passwd', self.password),
             ('post_url', "/cgi/device"),
         ]
-        html = self.request("/cgi/device", data)
+        html = self.request("/cgi/device", data, "Logging in...")
 
         # Succesful login
         if '<h1>Switch Status</h1>' in html:
@@ -265,7 +268,7 @@ class FS726T(object):
         session timeout before you can log in again.
         """
         try:
-            self.request("/cgi/logout")
+            self.request("/cgi/logout", status = "Logging out...")
         except urllib2.HTTPError,e:
             if e.code == 404:
                 sys.stderr.write("Ignoring logout error, we're probably not logged in.\n")
@@ -276,6 +279,8 @@ class FS726T(object):
     def commit_all(self):
         def changes_of_type(type):
             return [c for c in self.changes if isinstance(c, type)]
+
+        self._emit('status_changed', "Committing changes...")
 
         write_config = False
 
@@ -291,6 +296,7 @@ class FS726T(object):
 
         self.changes = []
         self._emit('changelist_changed')
+        self._emit('status_changed', None)
 
     def commit_port_description_change(self, port, name):
         """
@@ -303,10 +309,10 @@ class FS726T(object):
             ('post_url', '/cgi/portdetail'),
         ]
 
-        self.request("/cgi/portdetail=%s" % (port.num - 1), data)
+        self.request("/cgi/portdetail=%s" % (port.num - 1), data, "Committing port %d description..." % (port.num))
 
     def get_status(self):
-        soup = BeautifulSoup(self.request("/cgi/device"), convertEntities=BeautifulSoup.HTML_ENTITIES)
+        soup = BeautifulSoup(self.request("/cgi/device", status = "Retrieving switch status..."), convertEntities=BeautifulSoup.HTML_ENTITIES)
 
         try:
             self.parse_status(soup)
@@ -316,6 +322,8 @@ class FS726T(object):
             # Print HTML for debugging
             print soup
             raise
+
+        self._emit('status_changed', None)
 
     def parse_status(self, soup):
         #####################################
@@ -594,6 +602,7 @@ class Interface(object):
         ('none_focus', normal_text, focus_bg),
         ('tagged_focus', tagged_text, focus_bg),
         ('untagged_focus', untagged_text, focus_bg),
+        ('status', 'white', 'dark blue'),
     ]
 
     # (Label, attribute, editable?)
@@ -636,6 +645,14 @@ class Interface(object):
         super(Interface, self).__init__()
 
     def start(self):
+        self.create_widgets()
+
+        urwid.connect_signal(switch, 'status_changed', self.status_changed)
+
+        self.loop = urwid.MainLoop(self.overlay_widget, palette=Interface.palette, unhandled_input=self.unhandled_input)
+        self.loop.screen.run_wrapper(self.run)
+
+    def create_widgets(self):
         self.header = header = urwid.Text("Connected to %s" % self.switch.address, align='center')
         header = urwid.AttrMap(header, 'header')
 
@@ -683,10 +700,20 @@ class Interface(object):
                            ('flow', changelist),
                            ('flow', dbg),
                           ])
-        body = urwid.Filler(body, valign = 'top')
+        self.main_widget = urwid.Filler(body, valign = 'top')
 
-        self.loop = urwid.MainLoop(body, palette=Interface.palette, unhandled_input=self.unhandled_input)
-        self.loop.screen.run_wrapper(self.run)
+        self.status_widget = urwid.Text('Starting...', align='center')
+        status = urwid.Filler(self.status_widget)
+        status = urwid.LineBox(status)
+        status = urwid.AttrMap(status, 'status')
+        self.overlay_widget = urwid.Overlay(
+            top_w = status,
+            bottom_w = self.main_widget,
+            align = 'center',
+            width = 50,
+            valign = ('fixed top', 4),
+            height = 10,
+        )
 
     def run(self):
         self.loop.draw_screen()
@@ -694,6 +721,8 @@ class Interface(object):
         # Get switch status
         if not load:
             self.switch.get_status()
+        else:
+            self.status_changed(None, None)
 
         log("Starting mainloop")
         self.loop.run()
@@ -795,6 +824,24 @@ class Interface(object):
             log("Unhandled keypress: %s" % str(key))
 
         return False
+
+    def status_changed(self, obj, new_status):
+        """
+        Show the current status on the screen. Pass a new status of None
+        to remove the status popup and allow the interface to be used again.
+
+        Intended for use as a signal handler, leave the "obj" parameter
+        to None if call this function directly.
+        """
+        if new_status:
+            self.status_widget.set_text(new_status)
+            self.loop.widget = self.overlay_widget
+        else:
+            self.loop.widget = self.main_widget
+
+        # Force a screen redraw (in case we're called from a keypress
+        # handler which takes a while to copmlete, for example).
+        self.loop.draw_screen()
 
     def log(self, text):
         # Note: This discards any existing markup
