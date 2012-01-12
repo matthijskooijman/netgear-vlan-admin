@@ -13,8 +13,8 @@ from StringIO import StringIO
 
 config_filename = os.path.expanduser("~/.config/vlan-admin.conf")
 
-debug = urwid.Text('')
 running = False
+ui = None
 
 # Some machinery to load a cached version of the settings, to speed up
 # debugging.
@@ -22,8 +22,12 @@ write = False
 load = False
 
 def log(text):
-    # Note: This discards any existing markup
-    debug.set_text(debug.text + text + "\n")
+    if ui:
+        ui.log(text)
+    else:
+        # Shouldn't normally happen, but this can happen when debugging
+        # with write == True
+        print(text)
 
 class LoginException(Exception):
     pass
@@ -658,7 +662,8 @@ class Interface(object):
         ])
         bottom = TopLine(bottom, 'Details')
 
-        dbg = TopLine(debug, 'Debug')
+        self.debug = urwid.Text('')
+        dbg = TopLine(self.debug, 'Debug')
 
         self.changelist = urwid.Text('')
         changelist = TopLine(self.changelist, 'Unsaved changes')
@@ -790,6 +795,10 @@ class Interface(object):
             log("Unhandled keypress: %s" % str(key))
 
         return False
+
+    def log(self, text):
+        # Note: This discards any existing markup
+        self.debug.set_text(self.debug.text + text + "\n")
 
 def remove_html_tags(data):
     p = re.compile(r'<.*?>')
