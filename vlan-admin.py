@@ -36,14 +36,15 @@ class LoginException(Exception):
     pass
 
 class Change(object):
-    def __init__(self, what, how):
+    def __init__(self, what, how, old):
         """
-        Creates a new change object, containing a what and a how.
-        Subclasses should define what these mean, this class only stores
-        the values.
+        Creates a new change object, containing a what, a how and an old
+        value.  Subclasses should define what these mean, this class
+        only stores the values.
         """
         self.what = what
         self.how = how
+        self.old = old
 
 class VlanNameChange(Change):
     """
@@ -55,10 +56,17 @@ class VlanNameChange(Change):
     def merge_with(self, other):
         if (isinstance(other, VlanNameChange) and
             other.what == self.what):
-            # This change replaces the other change. Note this actually
-            # means this changes ends up in the position of the other
-            # change in the changelist.
-            return (None, self)
+
+            if (self.how == other.old):
+                # This changes cancels the other change, remove them
+                # both
+                return (None, None)
+            else:
+                # This change replaces the other change. Note this actually
+                # means this changes ends up in the position of the other
+                # change in the changelist.
+                self.old = other.old
+                return (None, self)
 
         # In all other cases, keep all of them
         return (self, other)
@@ -76,10 +84,17 @@ class PortDescriptionChange(Change):
     def merge_with(self, other):
         if (isinstance(other, PortDescriptionChange) and
             other.what == self.what):
-            # This change replaces the other change. Note this actually
-            # means this changes ends up in the position of the other
-            # change in the changelist.
-            return (None, self)
+
+            if (self.how == other.old):
+                # This changes cancels the other change, remove them
+                # both
+                return (None, None)
+            else:
+                # This change replaces the other change. Note this actually
+                # means this changes ends up in the position of the other
+                # change in the changelist.
+                self.old = other.old
+                return (None, self)
 
         # In all other cases, keep all of them
         return (self, other)
@@ -113,8 +128,8 @@ class Vlan(object):
     @name.setter
     def name(self, value):
         if value != self._name:
+            self.switch.queue_change(VlanNameChange(self, value, self._name))
             self._name = value
-            self.switch.queue_change(VlanNameChange(self, value))
 
     def __repr__(self):
         return u"VLAN %s: %s (802.11q ID %s)" % (self.internal_id, self.name, self.dotq_id)
@@ -150,8 +165,8 @@ class Port(object):
     @description.setter
     def description(self, value):
         if value != self._description:
+            self.switch.queue_change(PortDescriptionChange(self, value, self._description))
             self._description = value
-            self.switch.queue_change(PortDescriptionChange(self, value))
 
     def __repr__(self):
         return u"Port %s: %s (speed: %s, speed setting: %s, flow control: %s, link status = %s)" % (self.num, self.description, self.speed, self.speed_setting, self.flow_control, self.link_status)
