@@ -799,6 +799,9 @@ class Interface(object):
     def log(self, text):
         # Note: This discards any existing markup
         self.debug.set_text(self.debug.text + text + "\n")
+        # Force a screen redraw (in case we're called from a keypress
+        # handler which takes a while to copmlete, for example).
+        self.loop.draw_screen()
 
 def remove_html_tags(data):
     p = re.compile(r'<.*?>')
