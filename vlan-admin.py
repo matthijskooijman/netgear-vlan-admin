@@ -16,11 +16,14 @@ config_filename = os.path.expanduser("~/.config/vlan-admin.conf")
 debug = urwid.Text('')
 running = False
 
+# Some machinery to load a cached version of the settings, to speed up
+# debugging.
+write = False
+load = False
+
 def log(text):
     # Note: This discards any existing markup
     debug.set_text(debug.text + text + "\n")
-    if not running:
-        print(text)
 
 class LoginException(Exception):
     pass
@@ -149,15 +152,29 @@ class Port(object):
 class FS726T(object):
     # Autoregister signals
     __metaclass__ = urwid.MetaSignals
-    signals = ['changelist_changed']
+    signals = ['changelist_changed', 'details_changed', 'portlist_changed']
 
     def __init__(self, address = None, password = None, config = None):
         self.address = address
         self.password = password
-        self.ports = None
-        self.vlans = None
+        self.ports = {}
+        self.vlans = {}
         self.config = config
         self.changes = []
+
+        self.product = None
+        self.firmware_version = None
+        self.protocol_version = None
+        self.ip_config = None
+        self.ip_config = None
+        self.ip_address = None
+        self.ip_netmask = None
+        self.ip_gateway = None
+        self.mac_address = None
+        self.hostname = None
+        self.location = None
+        self.login_timeout = None
+        self.uptime = None
 
         super(FS726T, self).__init__()
 
@@ -288,7 +305,9 @@ class FS726T(object):
         soup = BeautifulSoup(self.request("/cgi/device"), convertEntities=BeautifulSoup.HTML_ENTITIES)
 
         try:
-            return self.parse_status(soup)
+            self.parse_status(soup)
+            self._emit('details_changed')
+            self._emit('portlist_changed')
         except AttributeError as e:
             # Print HTML for debugging
             print soup
@@ -418,6 +437,16 @@ class PortVlanMatrix(urwid.WidgetWrap):
     """
     def __init__(self, switch, focus_change):
         self.switch = switch
+        self.focus_change = focus_change
+
+        super(PortVlanMatrix, self).__init__(None)
+
+        self.create_widgets(switch)
+
+        # When the switch (re)loads the portlist, just recreate the widgets
+        urwid.connect_signal(switch, 'portlist_changed', self.create_widgets)
+
+    def create_widgets(self, switch):
         # We build a matrix using a Pile of Columns. This allows us to
         # properly navigate through the matrix. We can't inverse this
         # (using a Columns of Piles), since there is no code to
@@ -451,16 +480,14 @@ class PortVlanMatrix(urwid.WidgetWrap):
             urwid.connect_signal(edit, 'change', vlan_title_change)
             for port in switch.ports.values():
                 widget = PortVlanWidget(port, vlan)
-                urwid.connect_signal(widget, 'focus', focus_change)
+                urwid.connect_signal(widget, 'focus', self.focus_change)
                 widget = urwid.AttrMap(widget, None, 'focus')
                 row.append(
                     ('fixed', 4, widget)
                 )
             rows.append(urwid.Columns(row))
 
-        pile = urwid.Pile(rows)
-
-        super(PortVlanMatrix, self).__init__(pile)
+        self._w = urwid.Pile(rows)
 
     # We have a fixed size
     def sizing(self):
@@ -604,7 +631,7 @@ class Interface(object):
         self.switch = switch
         super(Interface, self).__init__()
 
-    def run(self):
+    def start(self):
         self.header = header = urwid.Text("Connected to %s" % self.switch.address, align='center')
         header = urwid.AttrMap(header, 'header')
 
@@ -616,7 +643,13 @@ class Interface(object):
         vlan_details = self.create_details(Interface.vlan_attrs, self.vlan_widgets)
 
         switch_details = self.create_details(Interface.switch_attrs, self.switch_widgets, True)
-        self.fill_details(Interface.switch_attrs, self.switch_widgets, self.switch)
+
+        def fill_switch_details(switch):
+            self.fill_details(Interface.switch_attrs, self.switch_widgets, switch)
+
+        urwid.connect_signal(switch, 'details_changed', fill_switch_details)
+        fill_switch_details(self.switch)
+
         switch_details = TopLine(switch_details, title="Connected switch")
 
         bottom = urwid.Columns([
@@ -647,9 +680,18 @@ class Interface(object):
                           ])
         body = urwid.Filler(body, valign = 'top')
 
-        loop = urwid.MainLoop(body, palette=Interface.palette, unhandled_input=self.unhandled_input)
+        self.loop = urwid.MainLoop(body, palette=Interface.palette, unhandled_input=self.unhandled_input)
+        self.loop.screen.run_wrapper(self.run)
+
+    def run(self):
+        self.loop.draw_screen()
+
+        # Get switch status
+        if not load:
+            self.switch.get_status()
+
         log("Starting mainloop")
-        loop.run()
+        self.loop.run()
 
     def create_details(self, attrs, widget_dict, gridflow = False):
         """
@@ -717,6 +759,7 @@ class Interface(object):
                 else:
                     w.set_text(text)
 
+
     def fill_changelist(self, switch):
         if switch.changes:
             text = u'\n'.join([unicode(c) for c in switch.changes])
@@ -752,10 +795,6 @@ def remove_html_tags(data):
     p = re.compile(r'<.*?>')
     return p.sub('', data)
 
-# Some machinery to load a cached version of the settings, to speed up
-# debugging.
-write = True
-load = not write
 
 # This is the structure of the config file. We apply validation to
 # make sure all sections are created, even when the config file starts
@@ -775,19 +814,21 @@ if load:
     switch = pickle.load(f)
     switch.config.reload()
 else:
-    # Create a new switch object and get the status from the switch
+    # Create a new switch object
     switch = FS726T('192.168.1.253', 'password', config)
-    switch.get_status()
 
-if write:
-    # Dump the switch object
-    f = open('switch.dump', 'w')
-    pickle.dump(switch, f)
+    if write:
+        # Get the status now, since it seems the even handlers interfere
+        # with the pickling.
+        switch.get_status()
+
+        # Dump the switch object
+        f = open('switch.dump', 'w')
+        pickle.dump(switch, f)
 
 # Create an interface for the switch
 ui = Interface(switch)
-running = True
-ui.run()
+ui.start()
 
 # When quitting, write out the configuration
 switch.config.write()
