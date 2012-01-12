@@ -651,25 +651,6 @@ class Interface(object):
         log("Starting mainloop")
         loop.run()
 
-    def create_switch_details(self):
-        max_label_width = max([len(l) for (l, a, e) in Interface.switch_attrs])
-
-        widgets = []
-        for (label_text, attr, edit) in Interface.switch_attrs:
-            label = urwid.Text(label_text + ":")
-            text = str(getattr(self.switch, attr))
-            if edit:
-                value = urwid.Edit(text)
-            else:
-                value = urwid.Text(text)
-
-            columns = urwid.Columns([
-                ('fixed', max_label_width + 4, label),
-                value,
-            ])
-
-            widgets.append(columns)
-
     def create_details(self, attrs, widget_dict, gridflow = False):
         """
         Create a widget showing attributes of an object as specified in
