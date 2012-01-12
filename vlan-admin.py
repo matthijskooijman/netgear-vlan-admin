@@ -102,6 +102,43 @@ class PortDescriptionChange(Change):
     def __unicode__(self):
         return 'Changing port %d description to: %s' % (self.what.num, self.how)
 
+class PortVlanMembershipChange(Change):
+    """
+    Record the change of membership of a given Port in a given Vlan.
+    what: (Port, Vlan) tuple
+    how: Vlan.NOTMEMBER, Vlan.TAGGED, Vlan.UNTAGGED
+    """
+
+    port = property(lambda self: self.what[0])
+    vlan = property(lambda self: self.what[1])
+
+    def merge_with(self, other):
+        if (isinstance(other, PortVlanMembershipChange) and
+            other.what == self.what):
+
+            if (self.how == other.old):
+                # This changes cancels the other change, remove them
+                # both
+                return (None, None)
+            else:
+                # This change replaces the other change. Note this actually
+                # means this changes ends up in the position of the other
+                # change in the changelist.
+                self.old = other.old
+                return (None, self)
+
+        # In all other cases, keep both of them
+        return (self, other)
+
+    def __unicode__(self):
+        display = {Vlan.TAGGED: "tagged", Vlan.UNTAGGED: "untagged"}
+
+        if self.old == Vlan.NOTMEMBER:
+            return 'Adding port %d to vlan %d (%s)' % (self.port.num, self.vlan.dotq_id, display[self.how])
+        elif self.how == Vlan.NOTMEMBER:
+            return 'Removing port %d from vlan %d' % (self.port.num, self.vlan.dotq_id)
+        else:
+            return 'Changing port %d in vlan %d from %s to %s' % (self.port.num, self.vlan.dotq_id, display[self.old], display[self.how])
 
 class Vlan(object):
     # Constants for the PortVLanMembershipChange. The values are also
@@ -109,6 +146,16 @@ class Vlan(object):
     NOTMEMBER = 0
     TAGGED = 1
     UNTAGGED = 2
+
+    __metaclass__ = urwid.MetaSignals
+    signals = ['memberships_changed']
+
+    def _emit(self, name, *args):
+        """
+        Convenience function to emit signals with self as first
+        argument.
+        """
+        urwid.emit_signal(self, name, self, *args)
 
     def __init__(self, switch, internal_id, dotq_id):
         """
@@ -129,6 +176,18 @@ class Vlan(object):
         except KeyError:
             self._name = ''
 
+    def set_port_membership(self, port, membership):
+        """
+        Change the membership type of the given port. membership should
+        be one of TAGGED, UNTAGGED or NOTMEMBER.
+        """
+        # TODO: Replace this function with some fancy wrapper around
+        # self.ports
+        old = self.ports[port]
+        if old != membership:
+            self.switch.queue_change(PortVlanMembershipChange((port, self), membership, old))
+            self.ports[port] = membership
+            self._emit('memberships_changed', port, membership)
 
     @property
     def name(self):
@@ -553,8 +612,22 @@ class PortVlanWidget(urwid.FlowWidget):
         self.port = port
         self.vlan = vlan
 
+        def memberships_changed(vlan, port, membership):
+            self._invalidate()
+
+        urwid.connect_signal(vlan, 'memberships_changed', memberships_changed)
+
     def keypress(self, size, key):
-        return key
+        if key == 't' or key == 'T':
+            self.vlan.set_port_membership(self.port, Vlan.TAGGED)
+        elif key == 'U' or key == 'u':
+            self.vlan.set_port_membership(self.port, Vlan.UNTAGGED)
+        elif key == ' ' or key == 'backspace' or key == 'delete':
+            self.vlan.set_port_membership(self.port, Vlan.NOTMEMBER)
+        else:
+            return key
+
+        return None
 
     def render(self, size, focus=False):
         cols, = size
