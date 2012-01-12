@@ -29,6 +29,9 @@ def log(text):
         # with write == True
         print(text)
 
+class CommitException(Exception):
+    pass
+
 class LoginException(Exception):
     pass
 
@@ -279,6 +282,9 @@ class FS726T(object):
     def commit_all(self):
         def changes_of_type(type):
             return [c for c in self.changes if isinstance(c, type)]
+
+        if not self.changes:
+            raise CommitException("No changes to commit")
 
         self._emit('status_changed', "Committing changes...")
 
@@ -642,6 +648,7 @@ class Interface(object):
 
     def __init__(self, switch):
         self.switch = switch
+        self.showing_popup = False
         super(Interface, self).__init__()
 
     def start(self):
@@ -818,8 +825,14 @@ class Interface(object):
     def unhandled_input(self, key):
         if key == 'q' or key == 'Q' or key == 'f10':
             raise urwid.ExitMainLoop()
+        elif self.showing_popup:
+            # Any keypress will hide the popup
+            self.hide_popup()
         elif key == 'f11':
-            self.switch.commit_all()
+            try:
+                self.switch.commit_all()
+            except CommitException as e:
+                self.show_popup(unicode(e))
         else:
             log("Unhandled keypress: %s" % str(key))
 
@@ -842,6 +855,15 @@ class Interface(object):
         # Force a screen redraw (in case we're called from a keypress
         # handler which takes a while to copmlete, for example).
         self.loop.draw_screen()
+
+    def show_popup(self, text):
+        # We just abuse the status widget for showing a modal popup
+        self.status_changed(None, text + "\n\n\nPress any key...")
+        self.showing_popup = True
+
+    def hide_popup(self):
+        self.status_changed(None, None)
+        self.showing_popup = False
 
     def log(self, text):
         # Note: This discards any existing markup
