@@ -208,24 +208,24 @@ class FS726T(object):
         urwid.emit_signal(self, name, self, *args)
 
     def queue_change(self, new_change):
-        for i in range(len(self.changes)):
-            change = self.changes[i]
-            (new_change, change_) = new_change.merge_with(change)
-            if change_ is None:
-                # The new changes makes the old change unneeded (e.g.,
-                # changing a port description twice).
-                self.changes.remove(change)
-            elif not change_ == change:
-                self.changes[i] = change_
+        # Make a new changes list to prevent issues with inline
+        # modification (while looping the list)
+        new_changes = []
+        for change in self.changes:
+            if new_change:
+                # As long as the new_change hasn't removed itself yet,
+                # try to merge it with each change
+                (new_change, change) = new_change.merge_with(change)
 
-            if new_change is None:
-                # The new change is no longer needed itself either
-                # (e.g., deleting a previously created vlan). Don't
-                # insert it, and don't try further merges either
-                break
+            # If the merging does not remove change, keep it in the list
+            if not change is None:
+                new_changes.append(change)
 
         if new_change:
-            self.changes.append(new_change)
+            new_changes.append(new_change)
+
+        # Update the changes list
+        self.changes = new_changes
         # Always call this, just in case something changed
         self._emit('changelist_changed')
 
