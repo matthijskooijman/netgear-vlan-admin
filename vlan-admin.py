@@ -104,6 +104,12 @@ class PortDescriptionChange(Change):
 
 
 class Vlan(object):
+    # Constants for the PortVLanMembershipChange. The values are also
+    # the ones used by the FS726 HTTP interface.
+    NOTMEMBER = 0
+    TAGGED = 1
+    UNTAGGED = 2
+
     def __init__(self, switch, internal_id, dotq_id):
         """
         Represents a vlan, consisting of an internal id (used to
@@ -115,6 +121,9 @@ class Vlan(object):
         self.dotq_id = dotq_id
         # Use the dotq_id, since that's constant over time
         self.config_key = "vlan%d" % dotq_id
+        # Map a Port object to either NOTMEMBER, TAGGED or UNTAGGED
+        self.ports = {}
+
         try:
             self._name = self.switch.config['vlan_names'][self.config_key]
         except KeyError:
@@ -153,8 +162,6 @@ class Port(object):
         self._description = description
 
         self.pvid = None # Should be set afterwards
-        self.tagged_vlans = {}
-        self.untagged_vlans = {}
 
         super(Port, self).__init__()
 
@@ -453,13 +460,13 @@ class FS726T(object):
 
             for portnum in range(1, len(tds)):
                 td = tds[portnum]
-                if td.text == '':
-                    continue
                 port = self.ports[portnum]
-                if td.text == 'T':
-                    port.tagged_vlans[vlan.internal_id] = vlan
+                if td.text == '':
+                    vlan.ports[port] = Vlan.NOTMEMBER
+                elif td.text == 'T':
+                    vlan.ports[port] = Vlan.TAGGED
                 elif td.text == 'U':
-                    port.untagged_vlans[vlan.internal_id] = vlan
+                    vlan.ports[port] = Vlan.UNTAGGED
                 else:
                     sys.stderr.write('Ignoring unknown vlan/port status: %s \n' % td.vlaue)
 
@@ -552,13 +559,15 @@ class PortVlanWidget(urwid.FlowWidget):
     def render(self, size, focus=False):
         cols, = size
         text = " " * ((cols - 2) / 2)
-        if self.vlan.internal_id in self.port.tagged_vlans:
+        member = self.vlan.ports[self.port]
+        if member == Vlan.TAGGED:
             text += "TT"
             attr = "tagged"
-        elif self.vlan.internal_id in self.port.untagged_vlans:
+        elif member == Vlan.UNTAGGED:
             text += "UU"
             attr = "untagged"
         else:
+            assert member == Vlan.NOTMEMBER
             attr = "none"
             text += "  "
         if focus:
