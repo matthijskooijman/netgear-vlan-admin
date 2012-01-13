@@ -384,6 +384,8 @@ class FS726T(object):
             elif isinstance(change, VlanNameChange):
                 self.config['vlan_names'][change.what.config_key] = change.how
                 write_config = True
+            else:
+                assert False, "Unknown change type? (%s)" % (type(change))
 
         if write_config:
             self.config.write()
