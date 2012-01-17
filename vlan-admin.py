@@ -794,6 +794,10 @@ class PortVlanMatrix(urwid.WidgetWrap):
                 return key
             widget = KeypressText(keypress_handler,
                                   "%4s: %s" % (vlan.dotq_id, vlan.name))
+            # For the focus_change handler
+            widget.vlan = vlan
+            urwid.connect_signal(widget, 'focus', self.focus_change)
+
             widget = urwid.AttrMap(widget, None, 'focus')
             row = [('fixed', self.vlan_header_width, widget)]
 
@@ -1075,8 +1079,10 @@ class Interface(object):
         self.fill_changelist(self.switch)
 
         def matrix_focus_change(widget):
-            self.fill_details(Interface.port_attrs, self.port_widgets, widget.port)
-            self.fill_details(Interface.vlan_attrs, self.vlan_widgets, widget.vlan)
+            if hasattr(widget, 'port'):
+                self.fill_details(Interface.port_attrs, self.port_widgets, widget.port)
+            if hasattr(widget, 'vlan'):
+                self.fill_details(Interface.vlan_attrs, self.vlan_widgets, widget.vlan)
 
         matrix = urwid.Padding(PortVlanMatrix(self, self.switch, matrix_focus_change), align='center')
         matrix = TopLine(matrix, 'VLAN / Port mappings')
