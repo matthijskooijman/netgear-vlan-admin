@@ -7,6 +7,7 @@ import os.path
 import pickle
 import configobj
 import validate
+import collections
 from BeautifulSoup import BeautifulSoup
 import urwid
 from StringIO import StringIO
@@ -419,14 +420,93 @@ class FS726T(object):
 
         write_config = False
 
+        # Maps a vlan to a dict that maps port to (newvalue, oldvalue)
+        # tuples. Undefined elements default to the empty dict.
+        memberships = collections.defaultdict(dict)
+
+        # Maps vlans to a list of ports that must be committed before
+        # repsectively after setting the PVIDs. Any vlan/port
+        # combinations not listed in these can be committed at any time.
+        first_pass = collections.defaultdict(list)
+        second_pass = collections.defaultdict(list)
+
         for change in self.changes:
             if isinstance(change, PortDescriptionChange):
                 self.commit_port_description_change(change.what, change.how)
             elif isinstance(change, VlanNameChange):
                 self.config['vlan_names'][change.what.config_key] = change.how
                 write_config = True
+            elif isinstance(change, PortPVIDChange):
+                # This port must be added to the vlan new PVID in the
+                # first pass (before setting the PVIDs)
+                first_pass[self.dotq_vlans[change.how]].append(change.what)
+                # This port must be removed to the vlan new PVID in the
+                # second pass (after setting the PVIDs)
+                second_pass[self.dotq_vlans[change.old]].append(change.what)
+            elif isinstance(change, PortVlanMembershipChange):
+                memberships[change.vlan][change.port] = (change.how, change.old)
             else:
                 assert False, "Unknown change type? (%s)" % (type(change))
+
+
+        def commit_memberships(vlan, ports):
+            """
+            Helper function to commit the changes in the given vlan (for
+            the given ports only).
+            """
+            changes = memberships[vlan]
+            changelist = []
+
+            # Find the new (or old) value for each of the ports
+            for num in sorted(self.ports.iterkeys()):
+                port = self.ports[num]
+                if not port in changes:
+                        # Just use the old (unmodified) value
+                        changelist.append(vlan.ports[port])
+                else:
+                    (new, old) = changes[port]
+
+                    if not port in ports:
+                        # Don't commit this value yet, use the old value
+                        changelist.append(old)
+                    else:
+                        # Commit the new value
+                        changelist.append(new)
+
+            self.commit_vlan_memberships(vlan, changelist)
+
+        # Committing vlan memberships happens in two passes: First, we
+        # commit all vlan/port combinations that have to happen before
+        # changing the PVIDs. For efficiency reasons, we commit all
+        # ports for a given vlan if possible (i.e., when no ports have
+        # to wait until the second pass). Then, we commit all the new
+        # PVIDs. Finally, we do a second pass, committing any remaining
+        # vlan/port membership changes. This is needed, since you can't
+        # change the PVID of a port to a vlan it's not a member of (and
+        # conversely, you can't remove a port from a vlan that's set as
+        # its PVID).
+        for vlan, ports in first_pass.iteritems():
+            if vlan in second_pass:
+                # If we run this vlan again in the second pass, just
+                # commit the ports that really need to be before the
+                # PVID changes
+                commit_memberships(vlan, ports)
+            else:
+                # If we don't need to run this vlan again in the second
+                # pass, just commit all ports.
+                commit_memberships(vlan, self.ports.values())
+                del memberships[vlan]
+
+        # If any pvids should be changed, commit the current (new)
+        # values of all PVIDs. No need to actually look at the
+        # PortPVIDChange objects generated, since we can only set all of
+        # the PVIDs in a single request.
+        if first_pass or second_pass:
+            self.commit_pvids([p.pvid for p in self.ports.itervalues()])
+
+        # And now, the second pass, just commit any remaining changes
+        for vlan in memberships:
+            commit_memberships(vlan, self.ports.values())
 
         if write_config:
             self.config.write()
@@ -447,6 +527,37 @@ class FS726T(object):
         ]
 
         self.request("/cgi/portdetail=%s" % (port.num - 1), data, "Committing port %d description..." % (port.num))
+
+    def commit_vlan_memberships(self, vlan, memberships):
+        """
+        Change the port memberships of a vlan. memberships is a list
+        containing, for each port, in order, either Vlan.NOTMEMBER,
+        Vlan.TAGGED or Vlan.UNTAGGED.
+        """
+        # Do not change the order of parameters, that breaks the request :-S
+        data = [
+            ('tag_id', vlan.internal_id), # "portset" numbers from 0
+            ('post_url', '/cgi/setvid'),
+            ('vid_mem', ','.join([str(m) for m in memberships])),
+        ]
+
+        self.request("/cgi/setvid=%s" % (vlan.internal_id), data, "Committing vlan %d memberships..." % (vlan.dotq_id))
+
+    def commit_pvids(self, pvids):
+        """
+        Change the pvid settings of all ports. vlans is a list
+        containing, for each port, in order, the vlan dotq_id for the PVID.
+        """
+        # Do not change the order of parameters, that breaks the request :-S
+        data = [
+            ('tag_id', 255),
+        ] + [
+            ('dvid', pvid) for pvid in pvids
+        ] + [
+            ('post_url', '/cgi/pvid'),
+        ]
+
+        self.request("/cgi/pvid", data, "Committing PVID settings..")
 
     def get_status(self):
         soup = BeautifulSoup(self.request("/cgi/device", status = "Retrieving switch status..."), convertEntities=BeautifulSoup.HTML_ENTITIES)
