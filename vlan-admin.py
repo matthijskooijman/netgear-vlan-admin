@@ -1058,31 +1058,37 @@ configspec = """
 __many__ = string()
 """
 
-# Create the switch object
-config = configobj.ConfigObj(infile = config_filename, configspec = StringIO(configspec), create_empty = True, encoding='UTF8')
-config.validate(validate.Validator())
+def main():
+    global ui
 
-if load:
-    # Load the switch object from a debug file
-    f = open('switch.dump', 'r')
-    switch = pickle.load(f)
-    switch.config.reload()
-else:
-    # Create a new switch object
-    switch = FS726T('192.168.1.253', 'password', config)
+    # Create the switch object
+    config = configobj.ConfigObj(infile = config_filename, configspec = StringIO(configspec), create_empty = True, encoding='UTF8')
+    config.validate(validate.Validator())
 
-    if write:
-        # Get the status now, since it seems the even handlers interfere
-        # with the pickling.
-        switch.get_status()
+    if load:
+        # Load the switch object from a debug file
+        f = open('switch.dump', 'r')
+        switch = pickle.load(f)
+        switch.config.reload()
+    else:
+        # Create a new switch object
+        switch = FS726T('192.168.1.253', 'password', config)
 
-        # Dump the switch object
-        f = open('switch.dump', 'w')
-        pickle.dump(switch, f)
+        if write:
+            # Get the status now, since it seems the even handlers interfere
+            # with the pickling.
+            switch.get_status()
 
-# Create an interface for the switch
-ui = Interface(switch)
-ui.start()
+            # Dump the switch object
+            f = open('switch.dump', 'w')
+            pickle.dump(switch, f)
 
-# When quitting, write out the configuration
-switch.config.write()
+    # Create an interface for the switch
+    ui = Interface(switch)
+    ui.start()
+
+    # When quitting, write out the configuration
+    switch.config.write()
+
+if __name__ == '__main__':
+    main()
