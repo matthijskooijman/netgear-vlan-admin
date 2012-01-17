@@ -876,6 +876,23 @@ class TopLine(urwid.LineBox):
             tlcorner = u' ', trcorner = u' ', blcorner = u' ', 
             brcorner = u' ', rline = u' ', lline = u' ', bline = u' ')
 
+class KeypressText(urwid.Text):
+    """
+    This is a Text widget, but one that is selectable (meaning it can
+    receive keypresses). You can pass a keypress handler to the
+    constructor, which should be a function accepting a size and a key
+    argument, just like the keypress method on Widgets.
+    """
+    def __init__(self, keypress_handler, *args, **kwargs):
+        super(KeypressText, self).__init__(*args, **kwargs)
+        self.keypress_handler = keypress_handler
+
+    def selectable(self):
+        return True
+
+    def keypress(self, size, key):
+        return self.keypress_handler(size, key)
+
 # Support vim key bindings in the default widgets
 urwid.command_map['j'] = 'cursor down'
 urwid.command_map['k'] = 'cursor up'
@@ -896,7 +913,7 @@ class Interface(object):
         ('none_focus', normal_text, focus_bg),
         ('tagged_focus', tagged_text, focus_bg),
         ('untagged_focus', untagged_text, focus_bg),
-        ('status', 'white', 'dark blue'),
+        ('overlay', 'white', 'dark blue'),
     ]
 
     # (Label, attribute, editable?)
@@ -937,7 +954,7 @@ class Interface(object):
 
     def __init__(self, switch):
         self.switch = switch
-        self.showing_popup = False
+        self._overlay_widget = None
         super(Interface, self).__init__()
 
     def start(self):
@@ -945,7 +962,7 @@ class Interface(object):
 
         urwid.connect_signal(self.switch, 'status_changed', self.status_changed)
 
-        self.loop = urwid.MainLoop(self.overlay_widget, palette=Interface.palette, unhandled_input=self.unhandled_input)
+        self.loop = urwid.MainLoop(self.main_widget, palette=Interface.palette, unhandled_input=self.unhandled_input)
         self.loop.screen.run_wrapper(self.run)
 
     def create_widgets(self):
@@ -997,18 +1014,31 @@ class Interface(object):
                           ])
         self.main_widget = urwid.Filler(body, valign = 'top')
 
-        self.status_widget = urwid.Text('Starting...', align='center')
-        status = urwid.Filler(self.status_widget)
-        status = urwid.LineBox(status)
-        status = urwid.AttrMap(status, 'status')
-        self.overlay_widget = urwid.Overlay(
-            top_w = status,
-            bottom_w = self.main_widget,
-            align = 'center',
-            width = 50,
-            valign = ('fixed top', 4),
-            height = 10,
-        )
+    @property
+    def overlay_widget(self):
+        return self._overlay_widget
+
+    @overlay_widget.setter
+    def overlay_widget(self, widget):
+        if widget:
+            self._overlay_widget = widget
+            widget = urwid.LineBox(widget)
+            widget = urwid.AttrMap(widget, 'overlay')
+            overlay= urwid.Overlay(
+                top_w = widget,
+                bottom_w = self.main_widget,
+                align = 'center',
+                width = 50,
+                valign = ('fixed top', 4),
+                height = 10,
+            )
+            self.loop.widget = overlay
+        else:
+            self.loop.widget = self.main_widget
+
+        # Force a screen redraw (in case we're called from a keypress
+        # handler which takes a while to copmlete, for example).
+        self.loop.draw_screen()
 
     def run(self):
         self.loop.draw_screen()
@@ -1099,9 +1129,6 @@ class Interface(object):
     def unhandled_input(self, key):
         if key == 'q' or key == 'Q' or key == 'f10':
             raise urwid.ExitMainLoop()
-        elif self.showing_popup:
-            # Any keypress will hide the popup
-            self.hide_popup()
         elif key == 'f11':
             try:
                 self.switch.commit_all()
@@ -1121,23 +1148,22 @@ class Interface(object):
         to None if call this function directly.
         """
         if new_status:
-            self.status_widget.set_text(new_status)
-            self.loop.widget = self.overlay_widget
+            text = urwid.Text(new_status, align='center')
+            self.overlay_widget = urwid.Filler(text)
         else:
-            self.loop.widget = self.main_widget
-
-        # Force a screen redraw (in case we're called from a keypress
-        # handler which takes a while to copmlete, for example).
-        self.loop.draw_screen()
+            self.overlay_widget = None
 
     def show_popup(self, text):
-        # We just abuse the status widget for showing a modal popup
-        self.status_changed(None, text + "\n\n\nPress any key...")
-        self.showing_popup = True
+        # Create a SelectableText overlay that hides the overlay on any
+        # keypress
+        def hide_on_keypress(size, key):
+            self.overlay_widget = None
+            return None
 
-    def hide_popup(self):
-        self.status_changed(None, None)
-        self.showing_popup = False
+        text = KeypressText(hide_on_keypress,
+                            text + "\n\n\nPress any key...",
+                            align='center')
+        self.overlay_widget = urwid.Filler(text)
 
     def log(self, text):
         # Note: This discards any existing markup
