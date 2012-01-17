@@ -92,6 +92,32 @@ class AddVlanChange(Change):
     def __unicode__(self):
         return 'Adding vlan %d' % (self.what.dotq_id)
 
+class DeleteVlanChange(Change):
+    """
+    Record the removal of a vlan. Constructor arguments:
+    what: Vlan object
+    how: None
+    old: None
+    """
+    def merge_with(self, other):
+        if (isinstance(other, VlanNameChange) and
+            other.what == self.what):
+                # No need to change the name of a removed vlan
+                return (self, None)
+        elif (isinstance(other, PortVlanMembershipChange) and
+              other.vlan == self.what):
+                # No need to change memberships in a removed vlan
+                return (self, None)
+        elif (isinstance(other, AddVlanChange) and
+              other.what == self.what):
+                # Removing a previously added vlan cancels both changes
+                return (None, None)
+        else:
+                return (self, other)
+
+    def __unicode__(self):
+        return 'Removing vlan %d' % (self.what.dotq_id)
+
 class PortDescriptionChange(Change):
     """
     Record the change of a port description. Constructor arguments:
@@ -353,6 +379,19 @@ class FS726T(object):
         self.dotq_vlans[dotq_id] = vlan
 
         self.queue_change(AddVlanChange(vlan, None, None))
+
+        self._emit('vlanlist_changed')
+
+    def delete_vlan(self, vlan):
+        # Delete the vlan from the lists
+        del self.vlans[vlan.internal_id - 1]
+        del self.dotq_vlans[vlan.dotq_id]
+
+        # Renumber the remaining vlans
+        for i in range(0, len(self.vlans)):
+            self.vlans[i].internal_id = i + 1
+
+        self.queue_change(DeleteVlanChange(vlan, None, None))
 
         self._emit('vlanlist_changed')
 
@@ -763,10 +802,11 @@ class PortVlanMatrix(urwid.WidgetWrap):
     Widget that displays a matrix of ports versus vlans and allows to
     edit the vlan memberships.
     """
-    def __init__(self, interface, switch, focus_change):
+    def __init__(self, interface, switch, focus_change, vlan_keypress_handler):
         self.interface = interface
         self.switch = switch
         self.focus_change = focus_change
+        self.vlan_keypress_handler = vlan_keypress_handler
 
         super(PortVlanMatrix, self).__init__(None)
 
@@ -800,9 +840,7 @@ class PortVlanMatrix(urwid.WidgetWrap):
 
         # Create a row for each vlan
         for vlan in switch.vlans:
-            def keypress_handler(widget, size, key):
-                return key
-            widget = KeypressText(keypress_handler,
+            widget = KeypressText(self.vlan_keypress_handler,
                                   "%4s: %s" % (vlan.dotq_id, vlan.name))
             # For the focus_change handler
             widget.vlan = vlan
@@ -1095,7 +1133,15 @@ class Interface(object):
             if hasattr(widget, 'vlan'):
                 self.fill_details(Interface.vlan_attrs, self.vlan_widgets, widget.vlan)
 
-        matrix = urwid.Padding(PortVlanMatrix(self, self.switch, matrix_focus_change), align='center')
+        def vlan_keypress_handler(widget, size, key):
+            if key == 'delete':
+                self.yesno_popup("Are you sure you wish to delete VLAN %d (%s)?" % (widget.vlan.dotq_id, widget.vlan.name),
+                                 lambda: self.switch.delete_vlan(widget.vlan))
+            else:
+                return key
+            return None
+
+        matrix = urwid.Padding(PortVlanMatrix(self, self.switch, matrix_focus_change, vlan_keypress_handler), align='center')
         matrix = TopLine(matrix, 'VLAN / Port mappings')
 
         body = urwid.Pile([('flow', switch_details), 
