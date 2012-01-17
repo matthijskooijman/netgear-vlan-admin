@@ -949,7 +949,6 @@ class Interface(object):
         self.port_widgets = {}
         self.vlan_widgets = {}
         self.switch_widgets = {}
-        #port_list = self.create_port_list()
         port_details = self.create_details(Interface.port_attrs, self.port_widgets)
         vlan_details = self.create_details(Interface.vlan_attrs, self.vlan_widgets)
 
@@ -1090,20 +1089,6 @@ class Interface(object):
         else:
             text = 'No changes'
         self.changelist.set_text(text)
-
-    def create_port_list(self):
-        ports = urwid.SimpleListWalker([])
-        for port in self.switch.ports.values():
-            w = PortWidget(port)
-            # Use a different attribute when focused
-            w = urwid.AttrMap(w, None, 'focus')
-            ports.append(w)
-
-        urwid.connect_signal(ports, 'modified',
-            lambda: self.fill_port_details(ports.get_focus()[0]._get_base_widget().port)
-        )
-
-        return urwid.ListBox(ports)
 
     def unhandled_input(self, key):
         if key == 'q' or key == 'Q' or key == 'f10':
