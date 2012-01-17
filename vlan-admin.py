@@ -790,14 +790,13 @@ class PortVlanMatrix(urwid.WidgetWrap):
 
         # Create a row for each vlan
         for vlan in switch.vlans.values():
-            edit = urwid.Edit("%4s: " % vlan.dotq_id, vlan.name)
-            row = [('fixed', self.vlan_header_width, edit)]
-            def vlan_title_change(widget, text):
-                widget.vlan.name = text
+            def keypress_handler(size, key):
+                return key
+            widget = KeypressText(keypress_handler,
+                                  "%4s: %s" % (vlan.dotq_id, vlan.name))
+            widget = urwid.AttrMap(widget, None, 'focus')
+            row = [('fixed', self.vlan_header_width, widget)]
 
-            # Save the vlan in the widget for the callback
-            edit.vlan = vlan
-            urwid.connect_signal(edit, 'change', vlan_title_change)
             for port in switch.ports:
                 widget = PortVlanWidget(port, vlan)
                 urwid.connect_signal(widget, 'focus', self.focus_change)
@@ -974,6 +973,7 @@ urwid.command_map['h'] = 'cursor left'
 urwid.command_map['l'] = 'cursor right'
 
 class Interface(object):
+    focus_text = 'black'
     normal_text = 'light gray'
     untagged_text = 'light blue'
     tagged_text = 'dark red'
@@ -982,6 +982,7 @@ class Interface(object):
     palette = [
         ('header', 'black', 'light gray'),
         ('none', normal_text, normal_bg),
+        ('focus', focus_text, focus_bg),
         ('tagged', tagged_text, normal_bg),
         ('untagged', untagged_text, normal_bg),
         ('none_focus', normal_text, focus_bg),
