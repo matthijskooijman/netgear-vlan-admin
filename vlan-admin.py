@@ -801,7 +801,6 @@ class PortVlanMatrix(urwid.WidgetWrap):
             for port in switch.ports:
                 widget = PortVlanWidget(port, vlan)
                 urwid.connect_signal(widget, 'focus', self.focus_change)
-                widget = urwid.AttrMap(widget, None, 'focus')
                 row.append(
                     ('fixed', 4, widget)
                 )
