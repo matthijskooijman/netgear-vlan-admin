@@ -1104,6 +1104,7 @@ class Interface(object):
     def overlay_widget(self, widget):
         if widget:
             self._overlay_widget = widget
+            widget = urwid.Padding(widget, left=1, right=1, width=('relative', 100))
             widget = urwid.LineBox(widget)
             widget = urwid.AttrMap(widget, 'overlay')
             overlay= urwid.Overlay(
