@@ -102,6 +102,34 @@ class PortDescriptionChange(Change):
     def __unicode__(self):
         return 'Changing port %d description to: %s' % (self.what.num, self.how)
 
+class PortPVIDChange(Change):
+    """
+    Record the change of a vlan name. Constructor arguments:
+    what: Port object
+    how: new vlan to use for the PVID
+    """
+
+    def merge_with(self, other):
+        if (isinstance(other, PortPVIDChange) and
+            other.what == self.what):
+
+            if (self.how == other.old):
+                # This change cancels the other change, remove them
+                # both
+                return (None, None)
+            else:
+                # This change replaces the other change. Note this actually
+                # means this changes ends up in the position of the other
+                # change in the changelist.
+                self.old = other.old
+                return (None, self)
+
+        # In all other cases, keep all of them
+        return (self, other)
+
+    def __unicode__(self):
+        return 'Changing PVID for port %d to %d' % (self.what.num, self.how)
+
 class PortVlanMembershipChange(Change):
     """
     Record the change of membership of a given Port in a given Vlan.
@@ -186,6 +214,9 @@ class Vlan(object):
         old = self.ports[port]
         if old != membership:
             if membership == Vlan.UNTAGGED:
+                # Also update the pvid for the port
+                port.pvid = self.dotq_id
+
                 # A port can only be untagged in one Vlan at a time, so
                 # remove it from the previous one.
                 for vlan in self.switch.vlans.values():
@@ -227,7 +258,7 @@ class Port(object):
         self.link_status = link_status
         self._description = description
 
-        self.pvid = None # Should be set afterwards
+        self._pvid = None # Should be set afterwards
 
         super(Port, self).__init__()
 
@@ -240,6 +271,16 @@ class Port(object):
         if value != self._description:
             self.switch.queue_change(PortDescriptionChange(self, value, self._description))
             self._description = value
+
+    @property
+    def pvid(self):
+        return self._pvid
+
+    @pvid.setter
+    def pvid(self, value):
+        if value != self._pvid and self._pvid != None:
+            self.switch.queue_change(PortPVIDChange(self, value, self._pvid))
+        self._pvid = value
 
     def __repr__(self):
         return u"Port %s: %s (speed: %s, speed setting: %s, flow control: %s, link status = %s)" % (self.num, self.description, self.speed, self.speed_setting, self.flow_control, self.link_status)
