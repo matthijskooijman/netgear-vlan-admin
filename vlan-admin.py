@@ -243,7 +243,7 @@ class Vlan(object):
 
                 # A port can only be untagged in one Vlan at a time, so
                 # remove it from the previous one.
-                for vlan in self.switch.vlans.values():
+                for vlan in self.switch.vlans:
                     if vlan.ports[port] == Vlan.UNTAGGED and vlan != self:
                         vlan.set_port_membership(port, Vlan.NOTMEMBER)
 
@@ -314,7 +314,7 @@ class FS726T(object):
         self.address = address
         self.password = password
         self.ports = []
-        self.vlans = {}
+        self.vlans = []
         self.dotq_vlans = {}
         self.config = config
         self.changes = []
@@ -348,7 +348,7 @@ class FS726T(object):
         for port in self.ports:
             vlan.ports[port] = Vlan.NOTMEMBER
 
-        self.vlans[internal_id] = vlan
+        self.vlans.append(vlan)
 
         self.queue_change(AddVlanChange(vlan, None, None))
 
@@ -697,7 +697,7 @@ class FS726T(object):
         # in a thead, of course)
         vlan_rows = rows[2:]
 
-        self.vlans = {}
+        self.vlans = []
         self.dotq_vlans = {}
         for row in vlan_rows:
             tds = row.findAll('td')
@@ -709,7 +709,7 @@ class FS726T(object):
 
             # Create the vlan descriptor
             vlan = Vlan(self, internal_id, dotq_id)
-            self.vlans[internal_id] = vlan
+            self.vlans.append(vlan)
             self.dotq_vlans[dotq_id] = vlan
 
             assert len(tds) == len(self.ports) + 1, "VLAN table has wrong number of ports?"
@@ -776,7 +776,7 @@ class PortVlanMatrix(urwid.WidgetWrap):
         # Find out the maximum vlan name length, so we can make all the
         # vlan names in the first column have the same width. Ensure
         # it's always 20 characters wide.
-        self.vlan_header_width = max([20] + [len(v.name) for v in self.switch.vlans.values()]) + 10
+        self.vlan_header_width = max([20] + [len(v.name) for v in self.switch.vlans]) + 10
 
         rows = []
 
@@ -789,8 +789,8 @@ class PortVlanMatrix(urwid.WidgetWrap):
         rows.append(urwid.Columns(row))
 
         # Create a row for each vlan
-        for vlan in switch.vlans.values():
-            def keypress_handler(size, key):
+        for vlan in switch.vlans:
+            def keypress_handler(widget, size, key):
                 return key
             widget = KeypressText(keypress_handler,
                                   "%4s: %s" % (vlan.dotq_id, vlan.name))
