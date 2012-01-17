@@ -13,7 +13,6 @@ from StringIO import StringIO
 
 config_filename = os.path.expanduser("~/.config/vlan-admin.conf")
 
-running = False
 ui = None
 
 # Some machinery to load a cached version of the settings, to speed up
