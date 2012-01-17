@@ -213,6 +213,10 @@ class Vlan(object):
         # self.ports
         old = self.ports[port]
         if old != membership:
+            self.switch.queue_change(PortVlanMembershipChange((port, self), membership, old))
+            self.ports[port] = membership
+            self._emit('memberships_changed', port, membership)
+
             if membership == Vlan.UNTAGGED:
                 # Also update the pvid for the port
                 port.pvid = self.dotq_id
@@ -220,12 +224,8 @@ class Vlan(object):
                 # A port can only be untagged in one Vlan at a time, so
                 # remove it from the previous one.
                 for vlan in self.switch.vlans.values():
-                    if vlan.ports[port] == Vlan.UNTAGGED:
+                    if vlan.ports[port] == Vlan.UNTAGGED and vlan != self:
                         vlan.set_port_membership(port, Vlan.NOTMEMBER)
-
-            self.switch.queue_change(PortVlanMembershipChange((port, self), membership, old))
-            self.ports[port] = membership
-            self._emit('memberships_changed', port, membership)
 
     @property
     def name(self):
