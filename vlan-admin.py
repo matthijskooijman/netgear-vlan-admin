@@ -254,6 +254,7 @@ class FS726T(object):
         self.password = password
         self.ports = {}
         self.vlans = {}
+        self.dotq_vlans = {}
         self.config = config
         self.changes = []
 
@@ -514,6 +515,7 @@ class FS726T(object):
         vlan_rows = rows[2:]
 
         self.vlans = {}
+        self.dotq_vlans = {}
         for row in vlan_rows:
             tds = row.findAll('td')
             # We assume the vlans are listed in order of their internal
@@ -525,6 +527,7 @@ class FS726T(object):
             # Create the vlan descriptor
             vlan = Vlan(self, internal_id, dotq_id)
             self.vlans[internal_id] = vlan
+            self.dotq_vlans[dotq_id] = vlan
 
             for portnum in range(1, len(tds)):
                 td = tds[portnum]
