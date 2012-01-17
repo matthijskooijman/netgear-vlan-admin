@@ -893,6 +893,25 @@ class KeypressText(urwid.Text):
     def keypress(self, size, key):
         return self.keypress_handler(size, key)
 
+class KeypressEdit(urwid.Edit):
+    """
+    This is an Edit widget, with a custom keypress handler. The
+    keypress_handler argument should be a function accepting a widget,
+    size and a key argument, similar to the keypress method on Widgets.
+    The widget argument contains this KeypressEdit widget. It should
+    return None if the key was handled, or the key itself to be
+    processed further.
+    """
+    def __init__(self, keypress_handler, *args, **kwargs):
+        super(KeypressEdit, self).__init__(*args, **kwargs)
+        self.keypress_handler = keypress_handler
+
+    def keypress(self, size, key):
+        key = self.keypress_handler(self, size, key)
+        if key:
+            key = super(KeypressEdit, self).keypress(size, key)
+        return key
+
 # Support vim key bindings in the default widgets
 urwid.command_map['j'] = 'cursor down'
 urwid.command_map['k'] = 'cursor up'
@@ -1164,6 +1183,32 @@ class Interface(object):
                             text + "\n\n\nPress any key...",
                             align='center')
         self.overlay_widget = urwid.Filler(text)
+
+    def input_popup(self, text, callback, cancel = None):
+        """
+        Show a popup that allows to enter text. When enter is pressed,
+        the given callback is called with the entered text. When f10 is
+        pressed, the prompt is canceled and the (optional) cancel
+        function is called with the text entered so far.
+        """
+        def handle_keypress(widget, size, key):
+            if key == 'enter':
+                self.overlay_widget = None
+                callback(widget.text)
+            elif key == 'f10' or key == 'ctrl g':
+                self.overlay_widget = None
+                if cancel:
+                    cancel(widget.text)
+            else:
+                return key
+            return None
+
+        text = urwid.Text(text)
+        edit = KeypressEdit(handle_keypress)
+        help = urwid.Text("Press enter to confirm, f10 or ^G to cancel")
+
+        body = urwid.Filler(edit, valign='top')
+        self.overlay_widget = urwid.Frame(body, header=text, footer=help)
 
     def log(self, text):
         # Note: This discards any existing markup
