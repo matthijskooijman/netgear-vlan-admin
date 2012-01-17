@@ -293,7 +293,7 @@ class FS726T(object):
     def __init__(self, address = None, password = None, config = None):
         self.address = address
         self.password = password
-        self.ports = {}
+        self.ports = []
         self.vlans = {}
         self.dotq_vlans = {}
         self.config = config
@@ -458,8 +458,7 @@ class FS726T(object):
             changelist = []
 
             # Find the new (or old) value for each of the ports
-            for num in sorted(self.ports.iterkeys()):
-                port = self.ports[num]
+            for port in self.ports:
                 if not port in changes:
                         # Just use the old (unmodified) value
                         changelist.append(vlan.ports[port])
@@ -494,7 +493,7 @@ class FS726T(object):
             else:
                 # If we don't need to run this vlan again in the second
                 # pass, just commit all ports.
-                commit_memberships(vlan, self.ports.values())
+                commit_memberships(vlan, self.ports)
                 del memberships[vlan]
 
         # If any pvids should be changed, commit the current (new)
@@ -502,11 +501,11 @@ class FS726T(object):
         # PortPVIDChange objects generated, since we can only set all of
         # the PVIDs in a single request.
         if first_pass or second_pass:
-            self.commit_pvids([p.pvid for p in self.ports.itervalues()])
+            self.commit_pvids([p.pvid for p in self.ports])
 
         # And now, the second pass, just commit any remaining changes
         for vlan in memberships:
-            commit_memberships(vlan, self.ports.values())
+            commit_memberships(vlan, self.ports)
 
         if write_config:
             self.config.write()
@@ -630,7 +629,7 @@ class FS726T(object):
         port_rows = rows[1:]
 
         speed = "unknown"
-        self.ports = {}
+        self.ports = []
         for row in port_rows:
             # There are rows containing a single th tag that specify the
             # speed for the subsequent ports.
@@ -644,9 +643,10 @@ class FS726T(object):
                 # Each row contains info for two ports, so iterate them
                 for port_tds in (tds[0:5], tds[5:10]):
                     (num, speed_setting, flow_control, link_status, description) = [td.text for td in port_tds]
+                    assert len(self.ports) == int(num) - 1, "Switch ports are not numbers consecutively?"
 
                     port = Port(self, int(num), speed, speed_setting, flow_control, link_status, description)
-                    self.ports[int(num)] = port
+                    self.ports.append(port)
 
         #####################################
         # Parse vlan information
@@ -680,9 +680,11 @@ class FS726T(object):
             self.vlans[internal_id] = vlan
             self.dotq_vlans[dotq_id] = vlan
 
-            for portnum in range(1, len(tds)):
-                td = tds[portnum]
-                port = self.ports[portnum]
+            assert len(tds) == len(self.ports) + 1, "VLAN table has wrong number of ports?"
+            for port in self.ports:
+                # We skip td[0] (which contains a header), since we use
+                # the 1-based port number
+                td = tds[port.num]
                 if td.text == '':
                     vlan.ports[port] = Vlan.NOTMEMBER
                 elif td.text == 'T':
@@ -711,7 +713,7 @@ class FS726T(object):
                 for port_tds in (tds[0:2], tds[2:4], tds[4:6], tds[6:8]):
                     (num, pvid) = [td.text for td in port_tds]
                     if num:
-                        self.ports[int(num)].pvid = int(pvid)
+                        self.ports[int(num) - 1].pvid = int(pvid)
 
 
 class PortVlanMatrix(urwid.WidgetWrap):
@@ -746,7 +748,7 @@ class PortVlanMatrix(urwid.WidgetWrap):
 
         # Create the header row, containing port numbers
         row = [('fixed', self.vlan_header_width, urwid.Text(""))]
-        for port in switch.ports.values():
+        for port in switch.ports:
             row.append(
                 ('fixed', 4, urwid.Text(" %02d " % port.num))
             )
@@ -762,7 +764,7 @@ class PortVlanMatrix(urwid.WidgetWrap):
             # Save the vlan in the widget for the callback
             edit.vlan = vlan
             urwid.connect_signal(edit, 'change', vlan_title_change)
-            for port in switch.ports.values():
+            for port in switch.ports:
                 widget = PortVlanWidget(port, vlan)
                 urwid.connect_signal(widget, 'focus', self.focus_change)
                 widget = urwid.AttrMap(widget, None, 'focus')
@@ -779,7 +781,7 @@ class PortVlanMatrix(urwid.WidgetWrap):
 
     def pack(self, size, focus=False):
         # Calculate our fixed size
-        columns = self.vlan_header_width + len(self.switch.ports.values()) * 4
+        columns = self.vlan_header_width + len(self.switch.ports) * 4
         # Delegate the rows calculation to the Pile
         rows = self.rows((columns,))
         return (columns, rows)
