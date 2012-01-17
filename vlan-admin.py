@@ -827,7 +827,7 @@ class Interface(object):
     def start(self):
         self.create_widgets()
 
-        urwid.connect_signal(switch, 'status_changed', self.status_changed)
+        urwid.connect_signal(self.switch, 'status_changed', self.status_changed)
 
         self.loop = urwid.MainLoop(self.overlay_widget, palette=Interface.palette, unhandled_input=self.unhandled_input)
         self.loop.screen.run_wrapper(self.run)
@@ -848,7 +848,7 @@ class Interface(object):
         def fill_switch_details(switch):
             self.fill_details(Interface.switch_attrs, self.switch_widgets, switch)
 
-        urwid.connect_signal(switch, 'details_changed', fill_switch_details)
+        urwid.connect_signal(self.switch, 'details_changed', fill_switch_details)
         fill_switch_details(self.switch)
 
         switch_details = TopLine(switch_details, title="Connected switch")
@@ -864,8 +864,8 @@ class Interface(object):
 
         self.changelist = urwid.Text('')
         changelist = TopLine(self.changelist, 'Unsaved changes')
-        urwid.connect_signal(switch, 'changelist_changed', self.fill_changelist)
-        self.fill_changelist(switch)
+        urwid.connect_signal(self.switch, 'changelist_changed', self.fill_changelist)
+        self.fill_changelist(self.switch)
 
         def matrix_focus_change(widget):
             self.fill_details(Interface.port_attrs, self.port_widgets, widget.port)
