@@ -75,6 +75,22 @@ class VlanNameChange(Change):
     def __unicode__(self):
         return 'Changing vlan %d name to: %s' % (self.what.dotq_id, self.how)
 
+class AddVlanChange(Change):
+    """
+    Record the addition of a vlan. Constructor arguments:
+    what: Vlan object
+    how: None
+    old: None
+    """
+    def merge_with(self, other):
+        # Cannot be merged, re-adding a vlan does not really cancel a
+        # removal either (so we'll just settle for an actual remove and
+        # then re-add).
+        return (self, other)
+
+    def __unicode__(self):
+        return 'Adding vlan %d' % (self.what.dotq_id)
+
 class PortDescriptionChange(Change):
     """
     Record the change of a port description. Constructor arguments:
@@ -292,7 +308,7 @@ class Port(object):
 class FS726T(object):
     # Autoregister signals
     __metaclass__ = urwid.MetaSignals
-    signals = ['changelist_changed', 'details_changed', 'portlist_changed', 'status_changed']
+    signals = ['changelist_changed', 'details_changed', 'portlist_changed', 'vlanlist_changed', 'status_changed']
 
     def __init__(self, address = None, password = None, config = None):
         self.address = address
@@ -325,6 +341,18 @@ class FS726T(object):
         argument.
         """
         urwid.emit_signal(self, name, self, *args)
+
+    def add_vlan(self, dotq_id):
+        internal_id = len(self.vlans) + 1
+        vlan = Vlan(self, internal_id, dotq_id)
+        for port in self.ports:
+            vlan.ports[port] = Vlan.NOTMEMBER
+
+        self.vlans[internal_id] = vlan
+
+        self.queue_change(AddVlanChange(vlan, None, None))
+
+        self._emit('vlanlist_changed')
 
     def queue_change(self, new_change):
         # Make a new changes list to prevent issues with inline
@@ -725,7 +753,8 @@ class PortVlanMatrix(urwid.WidgetWrap):
     Widget that displays a matrix of ports versus vlans and allows to
     edit the vlan memberships.
     """
-    def __init__(self, switch, focus_change):
+    def __init__(self, interface, switch, focus_change):
+        self.interface = interface
         self.switch = switch
         self.focus_change = focus_change
 
@@ -735,6 +764,7 @@ class PortVlanMatrix(urwid.WidgetWrap):
 
         # When the switch (re)loads the portlist, just recreate the widgets
         urwid.connect_signal(switch, 'portlist_changed', self.create_widgets)
+        urwid.connect_signal(switch, 'vlanlist_changed', self.create_widgets)
 
     def create_widgets(self, switch):
         # We build a matrix using a Pile of Columns. This allows us to
@@ -778,6 +808,32 @@ class PortVlanMatrix(urwid.WidgetWrap):
             rows.append(urwid.Columns(row))
 
         self._w = urwid.Pile(rows)
+
+
+    def keypress(self, size, key):
+        def add_vlan(input):
+            try:
+                dotq_id = int(input)
+            except ValueError:
+                self.interface.show_popup("Invalid VLAN id: '%s' (not a valid number)" % input)
+                return
+
+            if dotq_id < 1 or dotq_id > 4094:
+                self.interface.show_popup("Invalid VLAN id: '%d' (valid values range from 1 up to and including 4094)" % dotq_id)
+                return
+
+            if dotq_id in self.switch.dotq_vlans:
+                self.interface.show_popup("VLAN with id '%d' already exists" % dotq_id)
+                return
+
+            self.switch.add_vlan(dotq_id)
+
+        if key == 'insert':
+            self.interface.input_popup("802.1q VLAN ID?", add_vlan)
+        else:
+            return super(PortVlanMatrix, self).keypress(size, key)
+
+        return None
 
     # We have a fixed size
     def sizing(self):
@@ -1022,7 +1078,7 @@ class Interface(object):
             self.fill_details(Interface.port_attrs, self.port_widgets, widget.port)
             self.fill_details(Interface.vlan_attrs, self.vlan_widgets, widget.vlan)
 
-        matrix = urwid.Padding(PortVlanMatrix(self.switch, matrix_focus_change), align='center')
+        matrix = urwid.Padding(PortVlanMatrix(self, self.switch, matrix_focus_change), align='center')
         matrix = TopLine(matrix, 'VLAN / Port mappings')
 
         body = urwid.Pile([('flow', switch_details), 
