@@ -350,6 +350,7 @@ class FS726T(object):
             vlan.ports[port] = Vlan.NOTMEMBER
 
         self.vlans.append(vlan)
+        self.dotq_vlans[dotq_id] = vlan
 
         self.queue_change(AddVlanChange(vlan, None, None))
 
