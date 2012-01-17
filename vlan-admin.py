@@ -559,8 +559,8 @@ class FS726T(object):
         for row in vlan_rows:
             tds = row.findAll('td')
             # We assume the vlans are listed in order of their internal
-            # id (e.g., order of creation)
-            internal_id = len(self.vlans)
+            # id (e.g., order of creation, one-based)
+            internal_id = len(self.vlans) + 1
             # The first td shows the 802.11q id
             dotq_id = int(tds[0].text)
 
