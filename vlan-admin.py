@@ -360,7 +360,7 @@ class FS726T(object):
         # Make a new changes list to prevent issues with inline
         # modification (while looping the list)
         new_changes = []
-        for change in self.changes:
+        for change in reversed(self.changes):
             if new_change:
                 # As long as the new_change hasn't removed itself yet,
                 # try to merge it with each change
@@ -369,6 +369,8 @@ class FS726T(object):
             # If the merging does not remove change, keep it in the list
             if not change is None:
                 new_changes.append(change)
+
+        new_changes.reverse()
 
         if new_change:
             new_changes.append(new_change)
