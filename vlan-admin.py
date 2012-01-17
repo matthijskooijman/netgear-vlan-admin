@@ -1247,6 +1247,29 @@ class Interface(object):
                             align='center')
         self.overlay_widget = urwid.Filler(text)
 
+    def yesno_popup(self, text, yes_callback, no_callback = None):
+        """
+        Show a popup that allows to confirm/decline using y/n.
+        """
+        def handle_keypress(widget, size, key):
+            if key == 'y' or key == 'Y':
+                self.overlay_widget = None
+                yes_callback()
+            elif key == 'n' or key == 'N':
+                self.overlay_widget = None
+                if no_callback:
+                    no_callback()
+            else:
+                return key
+            return None
+
+        text = KeypressText(handle_keypress, text, align='center')
+        help = urwid.Text("Press 'y' to confirm, 'n' to decline")
+
+        body = urwid.Filler(text, valign='top')
+        self.overlay_widget = urwid.Frame(body, footer=help)
+
+
     def input_popup(self, text, callback, cancel = None):
         """
         Show a popup that allows to enter text. When enter is pressed,
