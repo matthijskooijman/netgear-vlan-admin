@@ -51,6 +51,7 @@ class VlanNameChange(Change):
     Record the change of a vlan name. Constructor arguments:
     what: Vlan object
     how: new name (string)
+    old: old name (string)
     """
 
     def merge_with(self, other):
@@ -79,6 +80,7 @@ class PortDescriptionChange(Change):
     Record the change of a port description. Constructor arguments:
     what: Port object
     how: new description (string)
+    old: old description (string)
     """
 
     def merge_with(self, other):
@@ -107,6 +109,7 @@ class PortPVIDChange(Change):
     Record the change of a vlan name. Constructor arguments:
     what: Port object
     how: new vlan to use for the PVID
+    old: old vlan to use for the PVID
     """
 
     def merge_with(self, other):
@@ -135,6 +138,7 @@ class PortVlanMembershipChange(Change):
     Record the change of membership of a given Port in a given Vlan.
     what: (Port, Vlan) tuple
     how: Vlan.NOTMEMBER, Vlan.TAGGED, Vlan.UNTAGGED
+    old: old value
     """
 
     port = property(lambda self: self.what[0])
