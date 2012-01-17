@@ -574,7 +574,7 @@ class FS726T(object):
         """
         # Do not change the order of parameters, that breaks the request :-S
         data = [
-            ('tag_id', vlan.internal_id), # "portset" numbers from 0
+            ('tag_id', vlan.internal_id),
             ('post_url', '/cgi/setvid'),
             ('vid_mem', ','.join([str(m) for m in memberships])),
         ]
