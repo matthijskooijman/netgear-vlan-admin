@@ -538,6 +538,28 @@ class FS726T(object):
                 else:
                     sys.stderr.write('Ignoring unknown vlan/port status: %s \n' % td.vlaue)
 
+        #####################################
+        # Parse PVID information
+        #####################################
+        h1 = soup.find(text="IEEE 802.1Q PVID Table").parent
+        table = h1.findNext("table")
+
+        rows = table.findAll('tr')
+
+        # The top row is the header (but nobody bothered putting it
+        # in a thead, of course).
+        pvid_rows = rows[1:]
+
+        for row in pvid_rows:
+            tds = row.findAll('td')
+            if (tds):
+                # Each row contains info for four ports, so iterate them
+                for port_tds in (tds[0:2], tds[2:4], tds[4:6], tds[6:8]):
+                    (num, pvid) = [td.text for td in port_tds]
+                    if num:
+                        self.ports[int(num)].pvid = int(pvid)
+
+
 class PortVlanMatrix(urwid.WidgetWrap):
     """
     Widget that displays a matrix of ports versus vlans and allows to
