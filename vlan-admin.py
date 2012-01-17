@@ -747,6 +747,7 @@ class Interface(object):
         ('Configured speed', 'speed_setting', False),
         ('Flow control', 'flow_control', False),
         ('Link', 'link_status', False),
+        ('PVID', 'pvid', False),
     ]]
 
     vlan_attrs = [[
