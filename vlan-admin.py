@@ -938,8 +938,9 @@ class KeypressText(urwid.Text):
     """
     This is a Text widget, but one that is selectable (meaning it can
     receive keypresses). You can pass a keypress handler to the
-    constructor, which should be a function accepting a size and a key
-    argument, just like the keypress method on Widgets.
+    constructor, which should be a function accepting a widget, size and
+    a key argument, similar to the keypress method on Widgets. The
+    widget argument containsthis KeypressText widget.
     """
     def __init__(self, keypress_handler, *args, **kwargs):
         super(KeypressText, self).__init__(*args, **kwargs)
@@ -949,7 +950,7 @@ class KeypressText(urwid.Text):
         return True
 
     def keypress(self, size, key):
-        return self.keypress_handler(size, key)
+        return self.keypress_handler(self, size, key)
 
 class KeypressEdit(urwid.Edit):
     """
@@ -1237,7 +1238,7 @@ class Interface(object):
     def show_popup(self, text):
         # Create a SelectableText overlay that hides the overlay on any
         # keypress
-        def hide_on_keypress(size, key):
+        def hide_on_keypress(widget, size, key):
             self.overlay_widget = None
             return None
 
