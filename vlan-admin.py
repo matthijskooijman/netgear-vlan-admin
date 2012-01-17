@@ -3,6 +3,7 @@
 import urllib, urllib2
 import re
 import sys
+import time
 import os.path
 import pickle
 import configobj
@@ -544,6 +545,12 @@ class FS726T(object):
 
         self.changes = []
         self._emit('changelist_changed')
+        # Always show a finished dialog. Otherwise, if you configuration
+        # changes are made, the status window is gone so fast it feels
+        # like the changes aren't really written (and if we have real
+        # changes to commit, one extra second doesn't matter much).
+        self._emit('status_changed', "Finished committing changes...")
+        time.sleep(1)
         self._emit('status_changed', None)
 
     def commit_port_description_change(self, port, name):
