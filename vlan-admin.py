@@ -1214,8 +1214,7 @@ class Interface(object):
 
         def vlan_keypress_handler(widget, size, key):
             if key == 'delete':
-                self.yesno_popup("Are you sure you wish to delete VLAN %d (%s)?" % (widget.vlan.dotq_id, widget.vlan.name),
-                                 lambda: self.switch.delete_vlan(widget.vlan))
+                self.try_delete_vlan(widget.vlan)
             else:
                 return key
             return None
@@ -1431,6 +1430,15 @@ class Interface(object):
 
         body = urwid.Filler(edit, valign='top')
         self.overlay_widget = urwid.Frame(body, header=text, footer=help)
+    def try_delete_vlan(self, vlan):
+        ports = [str(p.num) for p in self.switch.ports if p.pvid == vlan.dotq_id]
+        if ports:
+            msg = "Cannot remove vlan, some PVIDs still point to it (%s %s).\n"
+            msg += "\nAssign these ports into another vlan untagged to change this."
+            self.show_popup(msg % ('ports' if len(ports) > 1 else 'port', ', '.join(ports)))
+        else:
+            self.yesno_popup("Are you sure you wish to delete VLAN %d (%s)?" % (vlan.dotq_id, vlan.name),
+                             lambda: self.switch.delete_vlan(vlan))
 
     def log(self, text):
         # Note: This discards any existing markup
