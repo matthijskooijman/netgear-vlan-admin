@@ -345,6 +345,7 @@ class FS726T(object):
         self.dotq_vlans = {}
         self.config = config
         self.changes = []
+        self.max_vlan_internal_id = 0
 
         self.product = None
         self.firmware_version = None
@@ -370,8 +371,7 @@ class FS726T(object):
         urwid.emit_signal(self, name, self, *args)
 
     def add_vlan(self, dotq_id):
-        internal_id = len(self.vlans) + 1
-        vlan = Vlan(self, internal_id, dotq_id)
+        vlan = Vlan(self, None, dotq_id)
         for port in self.ports:
             vlan.ports[port] = Vlan.NOTMEMBER
 
@@ -384,12 +384,8 @@ class FS726T(object):
 
     def delete_vlan(self, vlan):
         # Delete the vlan from the lists
-        del self.vlans[vlan.internal_id - 1]
+        self.vlans.remove(vlan)
         del self.dotq_vlans[vlan.dotq_id]
-
-        # Renumber the remaining vlans
-        for i in range(0, len(self.vlans)):
-            self.vlans[i].internal_id = i + 1
 
         self.queue_change(DeleteVlanChange(vlan, None, None))
 
@@ -505,6 +501,9 @@ class FS726T(object):
         first_pass = collections.defaultdict(list)
         second_pass = collections.defaultdict(list)
 
+        # Keep a list of vlans to delete
+        delete_vlans = []
+
         for change in self.changes:
             if isinstance(change, PortDescriptionChange):
                 self.commit_port_description_change(change.what, change.how)
@@ -520,6 +519,13 @@ class FS726T(object):
                 second_pass[self.dotq_vlans[change.old]].append(change.what)
             elif isinstance(change, PortVlanMembershipChange):
                 memberships[change.vlan][change.port] = (change.how, change.old)
+            elif isinstance(change, AddVlanChange):
+                # Don't actually do anything, new vlans will be detected
+                # by the absence of an internal_id automatically while
+                # setting the memberships.
+                pass
+            elif isinstance(change, DeleteVlanChange):
+                delete_vlans.append(change.what)
             else:
                 assert False, "Unknown change type? (%s)" % (type(change))
 
@@ -582,6 +588,21 @@ class FS726T(object):
         for vlan in memberships:
             commit_memberships(vlan, self.ports)
 
+        # Finally, we delete the vlans that need to be deleted. We wait
+        # until after the membership changes since 1) deletion can only
+        # happen after updating PVIDs and 2) deletion messes with the
+        # internal_ids, so it's a lot easier to do them all in go an
+        # then renumber the remaining vlans.
+        for vlan in delete_vlans:
+            self.commit_vlan_delete(vlan)
+
+        # Renumber the remaining vlans (just like the switch does
+        # internally).
+        if delete_vlans:
+            for i in range(0, len(self.vlans)):
+                self.vlans[i].internal_id = i + 1
+            self.max_vlan_internal_id = len(self.vlans)
+
         if write_config:
             self.config.write()
 
@@ -613,15 +634,32 @@ class FS726T(object):
         Change the port memberships of a vlan. memberships is a list
         containing, for each port, in order, either Vlan.NOTMEMBER,
         Vlan.TAGGED or Vlan.UNTAGGED.
+
+        If the vlan is new (no internal_id yet), an internal id is
+        assigned (updating max_vlan_internal_id) and the vlan is
+        created.
         """
+        status = "Committing vlan %d memberships..." % (vlan.dotq_id)
+        # If no internal id is present yet, assign the next one. Calling
+        # setvid with a non-existing tag_id will make the switch
+        # conveniently create the vlan.
+        if vlan.internal_id == None:
+            self.max_vlan_internal_id += 1
+            vlan.internal_id = self.max_vlan_internal_id
+            status = "Creating vlan %d..." % (vlan.dotq_id)
+
         # Do not change the order of parameters, that breaks the request :-S
+        # Note that in the webgui, the 'vid' parameter is only present
+        # in the add new vlan request, but doesn't seem to break the
+        # update vlan request either, so we just add it unconditionally.
         data = [
             ('tag_id', vlan.internal_id),
+            ('vid', vlan.dotq_id),
             ('post_url', '/cgi/setvid'),
             ('vid_mem', ','.join([str(m) for m in memberships])),
         ]
 
-        self.request("/cgi/setvid=%s" % (vlan.internal_id), data, "Committing vlan %d memberships..." % (vlan.dotq_id))
+        self.request("/cgi/setvid=%s" % (vlan.internal_id), data, status)
 
     def commit_pvids(self, pvids):
         """
@@ -638,6 +676,20 @@ class FS726T(object):
         ]
 
         self.request("/cgi/pvid", data, "Committing PVID settings..")
+
+    def commit_vlan_delete(self, vlan):
+        """
+        Delete the given vlan. Does not renumber the remaining vlans or
+        update the max_vlan_internal_id value.
+        """
+        # Do not change the order of parameters, that breaks the request :-S
+        data = [
+            ('tag_id', vlan.internal_id),
+            ('del_tag', 'on'),
+            ('post_url', '/cgi/delvid'),
+            ('vid_mem', ''),
+        ]
+        self.request("/cgi/setvid=%s" % (vlan.internal_id), data, "Deleting vlan %d..." % (vlan.dotq_id))
 
     def get_status(self):
         soup = BeautifulSoup(self.request("/cgi/device", status = "Retrieving switch status..."), convertEntities=BeautifulSoup.HTML_ENTITIES)
@@ -774,6 +826,8 @@ class FS726T(object):
                     vlan.ports[port] = Vlan.UNTAGGED
                 else:
                     sys.stderr.write('Ignoring unknown vlan/port status: %s \n' % td.vlaue)
+
+        self.max_vlan_internal_id = len(self.vlans)
 
         #####################################
         # Parse PVID information
