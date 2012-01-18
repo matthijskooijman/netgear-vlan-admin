@@ -342,9 +342,9 @@ class Port(object):
 
     @pvid.setter
     def pvid(self, value):
-        if value != self._pvid and self._pvid != None:
+        if value != self._pvid:
             self.switch.queue_change(PortPVIDChange(self, value, self._pvid))
-        self._pvid = value
+            self._pvid = value
 
     def __repr__(self):
         return u"Port %s: %s (speed: %s, speed setting: %s, flow control: %s, link status = %s)" % (self.num, self.description, self.speed, self.speed_setting, self.flow_control, self.link_status)
@@ -873,7 +873,9 @@ class FS726T(object):
                 for port_tds in (tds[0:2], tds[2:4], tds[4:6], tds[6:8]):
                     (num, pvid) = [td.text for td in port_tds]
                     if num:
-                        self.ports[int(num) - 1].pvid = int(pvid)
+                        # We set the internal value here, to prevent a
+                        # change being generated in the changelist.
+                        self.ports[int(num) - 1]._pvid = int(pvid)
 
 
 class PortVlanMatrix(urwid.WidgetWrap):
