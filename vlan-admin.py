@@ -548,6 +548,9 @@ class FS726T(object):
                 pass
             elif isinstance(change, DeleteVlanChange):
                 delete_vlans.append(change.what)
+                # Remove the name from the config
+                self.config['vlan_names'].pop('vlan%d' % change.what.dotq_id, None)
+                write_config = True
             else:
                 assert False, "Unknown change type? (%s)" % (type(change))
 
