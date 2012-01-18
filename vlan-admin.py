@@ -246,7 +246,7 @@ class Vlan(object):
     UNTAGGED = 2
 
     __metaclass__ = urwid.MetaSignals
-    signals = ['memberships_changed']
+    signals = ['memberships_changed', 'details_changed']
 
     def _emit(self, name, *args):
         """
@@ -300,11 +300,22 @@ class Vlan(object):
         if value != self._name:
             self.switch.queue_change(VlanNameChange(self, value, self._name))
             self._name = value
+            self._emit('details_changed')
 
     def __repr__(self):
         return u"VLAN %s: %s (802.11q ID %s)" % (self.internal_id, self.name, self.dotq_id)
 
 class Port(object):
+    __metaclass__ = urwid.MetaSignals
+    signals = ['details_changed']
+
+    def _emit(self, name, *args):
+        """
+        Convenience function to emit signals with self as first
+        argument.
+        """
+        urwid.emit_signal(self, name, self, *args)
+
     def __init__(self):
         pass
 
@@ -335,6 +346,7 @@ class Port(object):
         if value != self._description:
             self.switch.queue_change(PortDescriptionChange(self, value, self._description))
             self._description = value
+            self._emit('details_changed')
 
     @property
     def pvid(self):
@@ -345,6 +357,7 @@ class Port(object):
         if value != self._pvid:
             self.switch.queue_change(PortPVIDChange(self, value, self._pvid))
             self._pvid = value
+            self._emit('details_changed')
 
     def __repr__(self):
         return u"Port %s: %s (speed: %s, speed setting: %s, flow control: %s, link status = %s)" % (self.num, self.description, self.speed, self.speed_setting, self.flow_control, self.link_status)
@@ -1197,7 +1210,6 @@ class Interface(object):
         def fill_switch_details(switch):
             self.fill_details(Interface.switch_attrs, self.switch_widgets, switch)
 
-        urwid.connect_signal(self.switch, 'details_changed', fill_switch_details)
         fill_switch_details(self.switch)
 
         switch_details = TopLine(switch_details, title="Connected switch")
@@ -1344,7 +1356,27 @@ class Interface(object):
                     w.set_edit_text(text)
                 else:
                     w.set_text(text)
+        # We abuse the widget_dict a bit to store the currently visible
+        # object, so we can unregister any signals
+        prev = widget_dict.get('active_object', None)
+        if prev != obj:
+            if prev:
+                prev_handler = widget_dict['active_object_handler']
+                urwid.disconnect_signal(prev, 'details_changed', prev_handler)
 
+            # Store the active opbject, so we can disconnect the signal
+            # later
+            widget_dict['active_object'] = obj
+
+            # Add a new signal handler, so the details get updated when they
+            # change.
+            def update_details(obj):
+                self.fill_details(attrs, widget_dict, obj)
+            urwid.connect_signal(obj, 'details_changed', update_details)
+
+            # Store the signal handler, since we need it to be identical
+            # when disconnecting the signal later on.
+            widget_dict['active_object_handler'] = update_details
 
     def fill_changelist(self, switch):
         if switch.changes:
