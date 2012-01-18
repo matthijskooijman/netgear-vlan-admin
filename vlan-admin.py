@@ -929,7 +929,7 @@ class PortVlanMatrix(urwid.WidgetWrap):
             row = [('fixed', self.vlan_header_width, widget)]
 
             for port in switch.ports:
-                widget = PortVlanWidget(port, vlan)
+                widget = PortVlanWidget(self.interface, port, vlan)
                 urwid.connect_signal(widget, 'focus', self.focus_change)
                 row.append(
                     ('fixed', 4, widget)
@@ -982,9 +982,10 @@ class PortVlanWidget(urwid.FlowWidget):
     Class to display and edit a port / vlan combination.
     """
 
-    def __init__(self, port, vlan):
+    def __init__(self, interface, port, vlan):
         super(PortVlanWidget, self).__init__()
         self._selectable = True
+        self.interface = interface
         self.port = port
         self.vlan = vlan
 
@@ -999,7 +1000,14 @@ class PortVlanWidget(urwid.FlowWidget):
         elif key == 'U' or key == 'u':
             self.vlan.set_port_membership(self.port, Vlan.UNTAGGED)
         elif key == ' ' or key == 'backspace' or key == 'delete':
-            self.vlan.set_port_membership(self.port, Vlan.NOTMEMBER)
+            if self.port.pvid == self.vlan.dotq_id:
+                # We can't just remove an untagged membership, we need
+                # to know where to point the PVID to.
+                msg = "Cannot remove membership, due to PVID setting.\n"
+                msg += "\nAssign this port into another vlan untagged to change the PVID."
+                self.interface.show_popup(msg)
+            else:
+                self.vlan.set_port_membership(self.port, Vlan.NOTMEMBER)
         else:
             return key
 
