@@ -1095,9 +1095,7 @@ class KeypressText(urwid.Text):
     def __init__(self, keypress_handler, *args, **kwargs):
         super(KeypressText, self).__init__(*args, **kwargs)
         self.keypress_handler = keypress_handler
-
-    def selectable(self):
-        return True
+        self._selectable = True
 
     def keypress(self, size, key):
         return self.keypress_handler(self, size, key)
