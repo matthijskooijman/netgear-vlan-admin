@@ -84,9 +84,26 @@ class AddVlanChange(Change):
     old: None
     """
     def merge_with(self, other):
-        # Cannot be merged, re-adding a vlan does not really cancel a
-        # removal either (so we'll just settle for an actual remove and
-        # then re-add).
+        if (isinstance(other, DeleteVlanChange) and
+            other.what.dotq_id == self.what.dotq_id):
+                # When re-adding a vlan wit the same dotq_id, we re-use
+                # the existing vlan in the switch. Ideally, we would
+                # just delete the vlan and then create a new one, but
+                # we can't always find an ordering of operations that
+                # satisfies all dependencies (especially when
+                # considering PVIDs).
+                self.what.internal_id = other.what.internal_id
+                changes = []
+                # Instead of deleting the vlan, we now have to record
+                # all changes to turn it into a brand new vlan
+                # separately.
+                if self.what.name != other.what.name:
+                    changes.append(VlanNameChange(self.what, self.what.name, other.what.name))
+                for port in self.what.ports:
+                    if self.what.ports[port] != other.what.ports[port]:
+                        changes.append(PortVlanMembershipChange((port, self.what), self.what.ports[port], other.what.ports[port]))
+                return (None, changes)
+
         return (self, [other])
 
     def __unicode__(self):
@@ -102,11 +119,17 @@ class DeleteVlanChange(Change):
     def merge_with(self, other):
         if (isinstance(other, VlanNameChange) and
             other.what == self.what):
-                # No need to change the name of a removed vlan
+                # No need to change the name of a removed vlan (but do
+                # copy the old value, in case we are later merged with
+                # an AddVlanChange)
+                self.what.name = other.old
                 return (self, [])
         elif (isinstance(other, PortVlanMembershipChange) and
               other.vlan == self.what):
-                # No need to change memberships in a removed vlan
+                # No need to change memberships in a removed vlan (but
+                # do copy the old value, in case we are later merged
+                # with an AddVlanChange)
+                self.what.ports[other.port] = other.old
                 return (self, [])
         elif (isinstance(other, AddVlanChange) and
               other.what == self.what):
