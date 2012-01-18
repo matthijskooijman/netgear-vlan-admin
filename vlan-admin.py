@@ -255,7 +255,7 @@ class Vlan(object):
         """
         urwid.emit_signal(self, name, self, *args)
 
-    def __init__(self, switch, internal_id, dotq_id):
+    def __init__(self, switch, internal_id, dotq_id, name):
         """
         Represents a vlan, consisting of an internal id (used to
         identify the vlan in the switch), the 802.11q id associated with
@@ -264,15 +264,9 @@ class Vlan(object):
         self.switch = switch
         self.internal_id = internal_id
         self.dotq_id = dotq_id
-        # Use the dotq_id, since that's constant over time
-        self.config_key = "vlan%d" % dotq_id
         # Map a Port object to either NOTMEMBER, TAGGED or UNTAGGED
         self.ports = {}
-
-        try:
-            self._name = self.switch.config['vlan_names'][self.config_key]
-        except KeyError:
-            self._name = ''
+        self._name = name
 
     def set_port_membership(self, port, membership):
         """
@@ -394,7 +388,7 @@ class FS726T(object):
         urwid.emit_signal(self, name, self, *args)
 
     def add_vlan(self, dotq_id):
-        vlan = Vlan(self, None, dotq_id)
+        vlan = Vlan(self, None, dotq_id, '')
         for port in self.ports:
             vlan.ports[port] = Vlan.NOTMEMBER
 
@@ -536,7 +530,7 @@ class FS726T(object):
             if isinstance(change, PortDescriptionChange):
                 self.commit_port_description_change(change.what, change.how)
             elif isinstance(change, VlanNameChange):
-                self.config['vlan_names'][change.what.config_key] = change.how
+                self.config['vlan_names']['vlan%d' % change.what.dotq_id] = change.how
                 write_config = True
             elif isinstance(change, PortPVIDChange):
                 # This port must be added to the vlan new PVID in the
@@ -837,7 +831,8 @@ class FS726T(object):
             dotq_id = int(tds[0].text)
 
             # Create the vlan descriptor
-            vlan = Vlan(self, internal_id, dotq_id)
+            name = self.config['vlan_names'].get('vlan%d' % dotq_id, '')
+            vlan = Vlan(self, internal_id, dotq_id, name)
             self.vlans.append(vlan)
             self.dotq_vlans[dotq_id] = vlan
 
