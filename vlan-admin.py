@@ -1437,7 +1437,8 @@ class Interface(object):
             msg += "\nAssign these ports into another vlan untagged to change this."
             self.show_popup(msg % ('ports' if len(ports) > 1 else 'port', ', '.join(ports)))
         else:
-            self.yesno_popup("Are you sure you wish to delete VLAN %d (%s)?" % (vlan.dotq_id, vlan.name),
+            name = vlan.name if vlan.name else 'unnamed'
+            self.yesno_popup("Are you sure you wish to delete VLAN %d (%s)?" % (vlan.dotq_id, name),
                              lambda: self.switch.delete_vlan(vlan))
 
     def log(self, text):
