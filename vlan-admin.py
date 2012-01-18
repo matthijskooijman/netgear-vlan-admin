@@ -1245,7 +1245,7 @@ class Interface(object):
                 top_w = widget,
                 bottom_w = self.main_widget,
                 align = 'center',
-                width = 50,
+                width = 75,
                 valign = ('fixed top', 4),
                 height = 10,
             )
