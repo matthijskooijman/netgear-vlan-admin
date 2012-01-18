@@ -1380,7 +1380,7 @@ class Interface(object):
 
         text = KeypressText(hide_on_keypress,
                             text + "\n\n\nPress any key...",
-                            align='center')
+                            align='left')
         self.overlay_widget = urwid.Filler(text)
 
     def yesno_popup(self, text, yes_callback, no_callback = None):
