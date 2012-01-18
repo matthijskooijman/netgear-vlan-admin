@@ -542,10 +542,9 @@ class FS726T(object):
             elif isinstance(change, PortVlanMembershipChange):
                 memberships[change.vlan][change.port] = (change.how, change.old)
             elif isinstance(change, AddVlanChange):
-                # Don't actually do anything, new vlans will be detected
-                # by the absence of an internal_id automatically while
-                # setting the memberships.
-                pass
+                # Make sure that the vlan has an entry in memberships,
+                # even if no ports need changing.
+                memberships[change.what]
             elif isinstance(change, DeleteVlanChange):
                 delete_vlans.append(change.what)
                 # Remove the name from the config
