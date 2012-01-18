@@ -62,16 +62,16 @@ class VlanNameChange(Change):
             if (self.how == other.old):
                 # This changes cancels the other change, remove them
                 # both
-                return (None, None)
+                return (None, [])
             else:
                 # This change replaces the other change. Note this actually
                 # means this changes ends up in the position of the other
                 # change in the changelist.
                 self.old = other.old
-                return (None, self)
+                return (None, [self])
 
         # In all other cases, keep all of them
-        return (self, other)
+        return (self, [other])
 
     def __unicode__(self):
         return 'Changing vlan %d name to: %s' % (self.what.dotq_id, self.how)
@@ -87,7 +87,7 @@ class AddVlanChange(Change):
         # Cannot be merged, re-adding a vlan does not really cancel a
         # removal either (so we'll just settle for an actual remove and
         # then re-add).
-        return (self, other)
+        return (self, [other])
 
     def __unicode__(self):
         return 'Adding vlan %d' % (self.what.dotq_id)
@@ -103,17 +103,17 @@ class DeleteVlanChange(Change):
         if (isinstance(other, VlanNameChange) and
             other.what == self.what):
                 # No need to change the name of a removed vlan
-                return (self, None)
+                return (self, [])
         elif (isinstance(other, PortVlanMembershipChange) and
               other.vlan == self.what):
                 # No need to change memberships in a removed vlan
-                return (self, None)
+                return (self, [])
         elif (isinstance(other, AddVlanChange) and
               other.what == self.what):
                 # Removing a previously added vlan cancels both changes
-                return (None, None)
+                return (None, [])
         else:
-                return (self, other)
+                return (self, [other])
 
     def __unicode__(self):
         return 'Removing vlan %d' % (self.what.dotq_id)
@@ -133,16 +133,16 @@ class PortDescriptionChange(Change):
             if (self.how == other.old):
                 # This changes cancels the other change, remove them
                 # both
-                return (None, None)
+                return (None, [])
             else:
                 # This change replaces the other change. Note this actually
                 # means this changes ends up in the position of the other
                 # change in the changelist.
                 self.old = other.old
-                return (None, self)
+                return (None, [self])
 
         # In all other cases, keep all of them
-        return (self, other)
+        return (self, [other])
 
     def __unicode__(self):
         return 'Changing port %d description to: %s' % (self.what.num, self.how)
@@ -162,16 +162,16 @@ class PortPVIDChange(Change):
             if (self.how == other.old):
                 # This change cancels the other change, remove them
                 # both
-                return (None, None)
+                return (None, [])
             else:
                 # This change replaces the other change. Note this actually
                 # means this changes ends up in the position of the other
                 # change in the changelist.
                 self.old = other.old
-                return (None, self)
+                return (None, [self])
 
         # In all other cases, keep all of them
-        return (self, other)
+        return (self, [other])
 
     def __unicode__(self):
         return 'Changing PVID for port %d to %d' % (self.what.num, self.how)
@@ -194,16 +194,16 @@ class PortVlanMembershipChange(Change):
             if (self.how == other.old):
                 # This changes cancels the other change, remove them
                 # both
-                return (None, None)
+                return (None, [])
             else:
                 # This change replaces the other change. Note this actually
                 # means this changes ends up in the position of the other
                 # change in the changelist.
                 self.old = other.old
-                return (None, self)
+                return (None, [self])
 
         # In all other cases, keep both of them
-        return (self, other)
+        return (self, [other])
 
     def __unicode__(self):
         display = {Vlan.TAGGED: "tagged", Vlan.UNTAGGED: "untagged"}
@@ -399,10 +399,15 @@ class FS726T(object):
             if new_change:
                 # As long as the new_change hasn't removed itself yet,
                 # try to merge it with each change
-                (new_change, change) = new_change.merge_with(change)
+                (new_change, changes) = new_change.merge_with(change)
 
-            # If the merging does not remove change, keep it in the list
-            if not change is None:
+                # And replace the merged-with change with new one(s)
+                # returned (or effectively remove it if an empty list is
+                # returned).
+                new_changes.extend(reversed(changes))
+            else:
+                # If the new change has already cancelled itself, just
+                # preserve the remaining changes.
                 new_changes.append(change)
 
         new_changes.reverse()
