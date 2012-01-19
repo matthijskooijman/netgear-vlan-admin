@@ -1007,6 +1007,15 @@ class PortVlanWidget(urwid.FlowWidget):
         def memberships_changed(vlan, port, membership):
             self._invalidate()
 
+        # TODO: This signal handler prevents PortVlanWidget from being
+        # cleaned up as long as the vlan is still around (even when it
+        # is replaced by a new PortVlanWidget and not actually displayed
+        # anymore). This means membership_changed should probably use a
+        # weakref to self. We can't pass a weakref (proxy) to
+        # memberships_changed to connect_signal, since then the function
+        # object will be garbage collected directly. This needs probably
+        # needs some support in urwid, but I haven't quite figured out
+        # how exactly...
         urwid.connect_signal(vlan, 'memberships_changed', memberships_changed)
 
     def keypress(self, size, key):
