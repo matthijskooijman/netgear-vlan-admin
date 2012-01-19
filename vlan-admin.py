@@ -22,7 +22,12 @@ ui = None
 write = False
 load = False
 
+logfile = None
+
 def log(text):
+    if logfile:
+        logfile.write(text + "\n")
+        logfile.flush()
     if ui:
         ui.log(text)
     else:
@@ -1524,7 +1529,9 @@ __many__ = string()
 """
 
 def main():
-    global ui
+    global ui, logfile
+
+    logfile = open('vlan-admin.log', 'a')
 
     # Create the switch object
     config = configobj.ConfigObj(infile = config_filename, configspec = StringIO(configspec), create_empty = True, encoding='UTF8')
@@ -1554,6 +1561,8 @@ def main():
 
     # When quitting, write out the configuration
     switch.config.write()
+
+    logfile.close()
 
 if __name__ == '__main__':
     main()
