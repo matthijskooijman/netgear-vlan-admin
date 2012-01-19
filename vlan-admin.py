@@ -550,8 +550,10 @@ class FS726T(object):
                 # first pass (before setting the PVIDs)
                 first_pass[self.dotq_vlans[change.how]].append(change.what)
                 # This port must be removed to the vlan new PVID in the
-                # second pass (after setting the PVIDs)
-                second_pass[self.dotq_vlans[change.old]].append(change.what)
+                # second pass (after setting the PVIDs). Don't bother if
+                # the vlan is not in dotq_vlans (i.e. is deleted)
+                if change.old in self.dotq_vlans:
+                    second_pass[self.dotq_vlans[change.old]].append(change.what)
             elif isinstance(change, PortVlanMembershipChange):
                 memberships[change.vlan][change.port] = (change.how, change.old)
             elif isinstance(change, AddVlanChange):
