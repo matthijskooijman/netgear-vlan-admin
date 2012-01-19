@@ -936,7 +936,12 @@ class PortVlanMatrix(urwid.WidgetWrap):
 
         # Create a row for each vlan
         for vlan in switch.vlans:
-            widget = urwid.Text("%4s: %s" % (vlan.dotq_id, vlan.name))
+            widget = urwid.Text("")
+            def update_vlan_header(vlan, vlan_header):
+                vlan_header.set_text("%4s: %s" % (vlan.dotq_id, vlan.name))
+            update_vlan_header(vlan, widget)
+            urwid.connect_signal(vlan, 'details_changed', update_vlan_header, widget)
+
             widget = KeypressAdapter(widget, self.vlan_keypress_handler)
             # For the focus_change handler
             widget.base_widget.vlan = vlan
