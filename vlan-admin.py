@@ -1005,7 +1005,8 @@ class PortVlanWidget(urwid.FlowWidget):
         self.vlan = vlan
 
         def memberships_changed(vlan, port, membership):
-            self._invalidate()
+            if port is self.port:
+                self._invalidate()
 
         # TODO: This signal handler prevents PortVlanWidget from being
         # cleaned up as long as the vlan is still around (even when it
