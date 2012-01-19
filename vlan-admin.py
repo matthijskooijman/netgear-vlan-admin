@@ -936,11 +936,11 @@ class PortVlanMatrix(urwid.WidgetWrap):
 
         # Create a row for each vlan
         for vlan in switch.vlans:
-            widget = KeypressText(self.vlan_keypress_handler,
-                                  "%4s: %s" % (vlan.dotq_id, vlan.name))
+            widget = urwid.Text("%4s: %s" % (vlan.dotq_id, vlan.name))
+            widget = KeypressAdapter(widget, self.vlan_keypress_handler)
             # For the focus_change handler
-            widget.vlan = vlan
-            urwid.connect_signal(widget, 'focus', self.focus_change)
+            widget.base_widget.vlan = vlan
+            urwid.connect_signal(widget.base_widget, 'focus', self.focus_change)
 
             widget = urwid.AttrMap(widget, None, 'focus')
             row = [('fixed', self.vlan_header_width, widget)]
@@ -1096,40 +1096,29 @@ class TopLine(urwid.LineBox):
             tlcorner = u' ', trcorner = u' ', blcorner = u' ', 
             brcorner = u' ', rline = u' ', lline = u' ', bline = u' ')
 
-class KeypressText(urwid.Text):
+class KeypressAdapter(urwid.WidgetPlaceholder):
     """
-    This is a Text widget, but one that is selectable (meaning it can
-    receive keypresses). You can pass a keypress handler to the
-    constructor, which should be a function accepting a widget, size and
-    a key argument, similar to the keypress method on Widgets. The
-    widget argument containsthis KeypressText widget.
-    """
-    def __init__(self, keypress_handler, *args, **kwargs):
-        super(KeypressText, self).__init__(*args, **kwargs)
-        self.keypress_handler = keypress_handler
-        self._selectable = True
+    This widget wraps another widget, but inserts a custom keypress
+    handler before the keypress handler of the original widget.
 
-    def keypress(self, size, key):
-        return self.keypress_handler(self, size, key)
-
-class KeypressEdit(urwid.Edit):
+    The keypress handler passed should be a function accepting a widget,
+    size and a key argument (similar to the keypress method on Widgets).
+    The widget argument contains this KeypressAdapter widget (use the
+    original_widge / base_widget to get at the decorated widget).
     """
-    This is an Edit widget, with a custom keypress handler. The
-    keypress_handler argument should be a function accepting a widget,
-    size and a key argument, similar to the keypress method on Widgets.
-    The widget argument contains this KeypressEdit widget. It should
-    return None if the key was handled, or the key itself to be
-    processed further.
-    """
-    def __init__(self, keypress_handler, *args, **kwargs):
-        super(KeypressEdit, self).__init__(*args, **kwargs)
+    def __init__(self, original_widget, keypress_handler):
+        super(KeypressAdapter, self).__init__(original_widget)
         self.keypress_handler = keypress_handler
 
     def keypress(self, size, key):
         key = self.keypress_handler(self, size, key)
-        if key:
-            key = super(KeypressEdit, self).keypress(size, key)
+        if key and self.original_widget.selectable():
+            key = self.original_widget.keypress(size, key)
         return key
+
+    def selectable(self):
+        # Make sure we get keypresses
+        return True
 
 # Support vim key bindings in the default widgets
 urwid.command_map['j'] = 'cursor down'
@@ -1246,7 +1235,7 @@ class Interface(object):
 
         def vlan_keypress_handler(widget, size, key):
             if key == 'delete':
-                self.try_delete_vlan(widget.vlan)
+                self.try_delete_vlan(widget.base_widget.vlan)
             else:
                 return key
             return None
@@ -1429,10 +1418,9 @@ class Interface(object):
             self.overlay_widget = None
             return None
 
-        text = KeypressText(hide_on_keypress,
-                            text + "\n\n\nPress any key...",
-                            align='left')
-        self.overlay_widget = urwid.Filler(text)
+        widget = urwid.Text(text + "\n\n\nPress any key...", align='left')
+        widget = KeypressAdapter(widget, hide_on_keypress)
+        self.overlay_widget = urwid.Filler(widget)
 
     def yesno_popup(self, text, yes_callback, no_callback = None):
         """
@@ -1450,7 +1438,8 @@ class Interface(object):
                 return key
             return None
 
-        text = KeypressText(handle_keypress, text, align='center')
+        text = urwid.Text(text, align='center')
+        text = KeypressAdapter(text, handle_keypress)
         help = urwid.Text("Press 'y' to confirm, 'n' to decline")
 
         body = urwid.Filler(text, valign='top')
@@ -1467,17 +1456,18 @@ class Interface(object):
         def handle_keypress(widget, size, key):
             if key == 'enter':
                 self.overlay_widget = None
-                callback(widget.text)
+                callback(widget.base_widget.text)
             elif key == 'f10' or key == 'ctrl g':
                 self.overlay_widget = None
                 if cancel:
-                    cancel(widget.text)
+                    cancel(widget.base_widget.text)
             else:
                 return key
             return None
 
         text = urwid.Text(text)
-        edit = KeypressEdit(handle_keypress)
+        edit = urwid.Edit()
+        edit = KeypressAdapter(edit, handle_keypress)
         help = urwid.Text("Press enter to confirm, f10 or ^G to cancel")
 
         body = urwid.Filler(edit, valign='top')
