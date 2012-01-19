@@ -1243,12 +1243,27 @@ class Interface(object):
         matrix = urwid.Padding(PortVlanMatrix(self, self.switch, matrix_focus_change, vlan_keypress_handler), align='center')
         matrix = TopLine(matrix, 'VLAN / Port mappings')
 
-        body = urwid.Pile([('flow', switch_details), 
+        pile = urwid.Pile([('flow', switch_details),
                            ('flow', matrix),
                            ('flow', bottom),
                            ('flow', changelist),
                            ('flow', dbg),
                           ])
+
+        def main_keypress_handler(widget, size, key):
+            if key == 'tab':
+                if pile.get_focus() is matrix:
+                    pile.set_focus(bottom)
+                    bottom.base_widget.set_focus(port_details)
+                elif bottom.base_widget.get_focus() is port_details:
+                    bottom.base_widget.set_focus(vlan_details)
+                else:
+                    pile.set_focus(matrix)
+            else:
+                return key
+            return None
+
+        body = KeypressAdapter(pile, main_keypress_handler)
         self.main_widget = urwid.Filler(body, valign = 'top')
 
     @property
