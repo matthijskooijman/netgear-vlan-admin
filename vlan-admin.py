@@ -936,9 +936,10 @@ class PortVlanMatrix(urwid.WidgetWrap):
         # Create the header row, containing port numbers
         row = [('fixed', self.vlan_header_width, urwid.Text(""))]
         for port in switch.ports:
-            row.append(
-                ('fixed', 4, urwid.Text(" %02d " % port.num))
-            )
+            widget = urwid.Text(" %02d " % port.num)
+            if port.up:
+                widget = urwid.AttrMap(widget, 'active_port', None)
+            row.append(('fixed', 4, widget))
         rows.append(urwid.Columns(row))
 
         # Create a row for each vlan
@@ -1155,6 +1156,7 @@ class Interface(object):
         ('tagged_focus', tagged_text, focus_bg),
         ('untagged_focus', untagged_text, focus_bg),
         ('overlay', 'white', 'dark blue'),
+        ('active_port', normal_text + ',bold', normal_bg),
     ]
 
     # (Label, attribute, editable?)
