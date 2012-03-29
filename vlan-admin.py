@@ -364,6 +364,8 @@ class Port(object):
             self._pvid = value
             self._emit('details_changed')
 
+    up = property(lambda self: self.link_status != 'Down')
+
     def __repr__(self):
         return u"Port %s: %s (speed: %s, speed setting: %s, flow control: %s, link status = %s)" % (self.num, self.description, self.speed, self.speed_setting, self.flow_control, self.link_status)
 
