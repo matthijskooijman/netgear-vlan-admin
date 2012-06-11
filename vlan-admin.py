@@ -899,6 +899,18 @@ class FS726T(object):
                         # change being generated in the changelist.
                         self.ports[int(num) - 1]._pvid = int(pvid)
 
+class DisableEdit(urwid.Edit):
+    def __init__(self, *args, **kwargs):
+        super(DisableEdit, self).__init__(*args, **kwargs)
+        self.disabled = False
+
+    def selectable(self):
+        return not self.disabled
+
+    def render(self, size, focus=False):
+        # Pretend we're always unfocused when we're disabled, to prevent
+        # rendering the cursor
+        return super(DisableEdit, self).render(size, not self.disabled and focus)
 
 class PortVlanMatrix(urwid.WidgetWrap):
     """
@@ -1343,7 +1355,7 @@ class Interface(object):
             for (label_text, attr, edit) in column:
                 label = urwid.Text(label_text + ":")
                 if edit:
-                    widget = urwid.Edit()
+                    widget = DisableEdit()
                     # fill_details will store the object displayed in here
                     widget.obj = None
                     def detail_changed(widget, text, attr):
@@ -1383,11 +1395,15 @@ class Interface(object):
         """
         for column in attrs:
             for (label_text, attr, edit) in column:
-                text = str(getattr(obj, attr))
+                if obj is None:
+                    text = ''
+                else:
+                    text = str(getattr(obj, attr))
                 w = widget_dict[attr]
                 if edit:
                     w.obj = obj
                     w.set_edit_text(text)
+                    w.disabled = (obj is None)
                 else:
                     w.set_text(text)
         # We abuse the widget_dict a bit to store the currently visible
@@ -1406,11 +1422,12 @@ class Interface(object):
             # change.
             def update_details(obj):
                 self.fill_details(attrs, widget_dict, obj)
-            urwid.connect_signal(obj, 'details_changed', update_details)
+            if not obj is None:
+                urwid.connect_signal(obj, 'details_changed', update_details)
 
-            # Store the signal handler, since we need it to be identical
-            # when disconnecting the signal later on.
-            widget_dict['active_object_handler'] = update_details
+                # Store the signal handler, since we need it to be identical
+                # when disconnecting the signal later on.
+                widget_dict['active_object_handler'] = update_details
 
     def fill_changelist(self, switch):
         if switch.changes:
