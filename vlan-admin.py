@@ -917,16 +917,21 @@ class PortVlanMatrix(urwid.WidgetWrap):
     Widget that displays a matrix of ports versus vlans and allows to
     edit the vlan memberships.
     """
-    def __init__(self, interface, switch, focus_change, vlan_keypress_handler):
+    def __init__(self, interface, switch, vlan_keypress_handler):
         self.interface = interface
         self.switch = switch
-        self.focus_change = focus_change
         self.vlan_keypress_handler = vlan_keypress_handler
 
         super(PortVlanMatrix, self).__init__(None)
 
         self.create_widgets()
 
+    def get_focus_attr(self, attrname):
+        return getattr(self._w.focus.focus.base_widget, attrname, None)
+
+    # Return the focused vlan or port
+    focus_vlan = property(lambda self: self.get_focus_attr('vlan'))
+    focus_port = property(lambda self: self.get_focus_attr('port'))
 
     def create_widgets(self):
         # We build a matrix using a Pile of Columns. This allows us to
@@ -960,16 +965,14 @@ class PortVlanMatrix(urwid.WidgetWrap):
             urwid.connect_signal(vlan, 'details_changed', update_vlan_header, weak_args=[widget])
 
             widget = KeypressAdapter(widget, self.vlan_keypress_handler)
-            # For the focus_change handler
+            # For the focus_vlan attribute
             widget.base_widget.vlan = vlan
-            urwid.connect_signal(widget.base_widget, 'focus', self.focus_change)
 
             widget = urwid.AttrMap(widget, None, 'focus')
             row = [('fixed', self.vlan_header_width, widget)]
 
             for port in self.switch.ports:
                 widget = PortVlanWidget(self.interface, port, vlan)
-                urwid.connect_signal(widget, 'focus', self.focus_change)
                 row.append(
                     ('fixed', 4, widget)
                 )
@@ -1215,7 +1218,22 @@ class Interface(object):
         urwid.connect_signal(self.switch, 'status_changed', self.status_changed)
 
         self.loop = urwid.MainLoop(self.main_widget, palette=Interface.palette, unhandled_input=self.unhandled_input)
+        # Register this idle callback before starting the mainloop, so
+        # it gets called before the idle callback inside MainLoop that
+        # redraws the screen.
+        self.loop.event_loop.enter_idle(self.check_focus)
         self.loop.screen.run_wrapper(self.run)
+
+    def check_focus(self):
+        """
+        Check which matrix cell has the current focus, and update the
+        VLAN and Port details sections to reflect the current focus.
+        """
+        for w in self.main_widget.base_widget.get_focus_widgets():
+            if w.base_widget is self.matrix:
+                self.fill_details(Interface.port_attrs, self.port_widgets, self.matrix.focus_port)
+                self.fill_details(Interface.vlan_attrs, self.vlan_widgets, self.matrix.focus_vlan)
+                break
 
     def create_widgets(self):
         self.header = header = urwid.Text("Connected to %s" % self.switch.address, align='center')
@@ -1250,12 +1268,6 @@ class Interface(object):
         urwid.connect_signal(self.switch, 'changelist_changed', self.fill_changelist)
         self.fill_changelist(self.switch)
 
-        def matrix_focus_change(widget):
-            if hasattr(widget, 'port'):
-                self.fill_details(Interface.port_attrs, self.port_widgets, widget.port)
-            if hasattr(widget, 'vlan'):
-                self.fill_details(Interface.vlan_attrs, self.vlan_widgets, widget.vlan)
-
         def vlan_keypress_handler(widget, size, key):
             if key == 'delete':
                 self.try_delete_vlan(widget.base_widget.vlan)
@@ -1263,7 +1275,7 @@ class Interface(object):
                 return key
             return None
 
-        self.matrix = PortVlanMatrix(self, self.switch, matrix_focus_change, vlan_keypress_handler)
+        self.matrix = PortVlanMatrix(self, self.switch, vlan_keypress_handler)
         matrix = urwid.Padding(TopLine(self.matrix, 'VLAN / Port mappings'), align='center')
         def update_matrix(switch):
             self.matrix.create_widgets()
