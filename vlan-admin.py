@@ -913,13 +913,10 @@ class PortVlanMatrix(urwid.WidgetWrap):
 
         super(PortVlanMatrix, self).__init__(None)
 
-        self.create_widgets(switch)
+        self.create_widgets()
 
-        # When the switch (re)loads the portlist, just recreate the widgets
-        urwid.connect_signal(switch, 'portlist_changed', self.create_widgets)
-        urwid.connect_signal(switch, 'vlanlist_changed', self.create_widgets)
 
-    def create_widgets(self, switch):
+    def create_widgets(self):
         # We build a matrix using a Pile of Columns. This allows us to
         # properly navigate through the matrix. We can't inverse this
         # (using a Columns of Piles), since there is no code to
@@ -935,7 +932,7 @@ class PortVlanMatrix(urwid.WidgetWrap):
 
         # Create the header row, containing port numbers
         row = [('fixed', self.vlan_header_width, urwid.Text(""))]
-        for port in switch.ports:
+        for port in self.switch.ports:
             widget = urwid.Text(" %02d " % port.num)
             if port.up:
                 widget = urwid.AttrMap(widget, 'active_port', None)
@@ -943,7 +940,7 @@ class PortVlanMatrix(urwid.WidgetWrap):
         rows.append(urwid.Columns(row))
 
         # Create a row for each vlan
-        for vlan in switch.vlans:
+        for vlan in self.switch.vlans:
             widget = urwid.Text("")
             def update_vlan_header(vlan_header, vlan):
                 vlan_header.set_text("%4s: %s" % (vlan.dotq_id, vlan.name))
@@ -958,7 +955,7 @@ class PortVlanMatrix(urwid.WidgetWrap):
             widget = urwid.AttrMap(widget, None, 'focus')
             row = [('fixed', self.vlan_header_width, widget)]
 
-            for port in switch.ports:
+            for port in self.switch.ports:
                 widget = PortVlanWidget(self.interface, port, vlan)
                 urwid.connect_signal(widget, 'focus', self.focus_change)
                 row.append(
@@ -1254,8 +1251,17 @@ class Interface(object):
                 return key
             return None
 
-        matrix = urwid.Padding(PortVlanMatrix(self, self.switch, matrix_focus_change, vlan_keypress_handler), align='center')
-        matrix = TopLine(matrix, 'VLAN / Port mappings')
+        self.matrix = PortVlanMatrix(self, self.switch, matrix_focus_change, vlan_keypress_handler)
+        matrix = urwid.Padding(TopLine(self.matrix, 'VLAN / Port mappings'), align='center')
+        def update_matrix(switch):
+            self.matrix.create_widgets()
+            # Focus the matrix
+            self.main_widget.base_widget.set_focus(matrix)
+
+        # When the switch (re)loads the portlist, just recreate the widgets
+        urwid.connect_signal(self.switch, 'portlist_changed', update_matrix)
+        urwid.connect_signal(self.switch, 'vlanlist_changed', update_matrix)
+
 
         pile = urwid.Pile([('flow', switch_details),
                            ('flow', matrix),
