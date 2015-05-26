@@ -11,6 +11,8 @@ configuration over different pages.
 This tool works by scraping the switch's webinterface, so it is probably
 not terribly robust or portable, but it works well enough.
 
+![Screenshot](doc/screenshot.png)
+
 Configuration
 -------------
 To configure the switch's IP address and password, modify vlan-admin.py.
