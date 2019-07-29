@@ -481,7 +481,7 @@ class FS726T(object):
         # Always call this, just in case something changed
         self._emit('changelist_changed')
 
-    def request(self, path, data = None, status = None):
+    def request(self, path, data = None, status = None, auto_login=True):
         if status:
             self._emit('status_changed', status)
 
@@ -498,7 +498,7 @@ class FS726T(object):
         response = urllib2.urlopen(url, data).read()
         log('Done')
 
-        if "<input type=submit value=' Login '>" in response:
+        if auto_login and "<input type=submit value=' Login '>" in response:
             self.do_login()
             return self.request(path, data, status)
         if "Only one user can login" in response:
@@ -538,7 +538,7 @@ class FS726T(object):
         session timeout before you can log in again.
         """
         try:
-            self.request("/cgi/logout", status = "Logging out...")
+            self.request("/cgi/logout", status = "Logging out...", auto_login=False)
         except urllib2.HTTPError,e:
             if e.code == 404:
                 sys.stderr.write("Ignoring logout error, we're probably not logged in.\n")
@@ -1474,6 +1474,7 @@ class Interface(object):
 
     def unhandled_input(self, key):
         if key == 'q' or key == 'Q' or key == 'f10':
+            self.switch.do_logout()
             raise urwid.ExitMainLoop()
         elif key == 'f11':
             try:
