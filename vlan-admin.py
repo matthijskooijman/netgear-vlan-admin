@@ -1479,7 +1479,7 @@ class Interface(object):
         if key == 'q' or key == 'Q' or key == 'f10':
             self.switch.do_logout()
             raise urwid.ExitMainLoop()
-        elif key == 'f11':
+        elif key in ['f11', 'c', 'C']:
             try:
                 self.switch.commit_all()
             except CommitException as e:
