@@ -28,13 +28,13 @@ import urllib
 import io
 import re
 import sys
+import bs4
 import time
 import os.path
 import pickle
 import configobj
 import validate
 import collections
-from BeautifulSoup import BeautifulSoup
 import urwid
 
 config_filename = os.path.expanduser("~/.config/vlan-admin.conf")
@@ -758,7 +758,7 @@ class FS726T(metaclass=urwid.MetaSignals):
         self.request("/cgi/setvid=%s" % (vlan.internal_id), data, "Deleting vlan %d..." % (vlan.dotq_id))
 
     def get_status(self):
-        soup = BeautifulSoup(self.request("/cgi/device", status = "Retrieving switch status..."), convertEntities=BeautifulSoup.HTML_ENTITIES)
+        soup = bs4.BeautifulSoup(self.request("/cgi/device", status="Retrieving switch status..."))
 
         try:
             self.parse_status(soup)
@@ -834,14 +834,14 @@ class FS726T(metaclass=urwid.MetaSignals):
             # speed for the subsequent ports.
             ths = row.findAll('th')
             if (ths and len(ths) == 1):
-                speed = ths[0].text
+                speed = ths[0].text.strip()
                 continue
 
             tds = row.findAll('td')
             if (tds):
                 # Each row contains info for two ports, so iterate them
                 for port_tds in (tds[0:5], tds[5:10]):
-                    (num, speed_setting, flow_control, link_status, description) = [td.text for td in port_tds]
+                    (num, speed_setting, flow_control, link_status, description) = [td.text.strip() for td in port_tds]
                     assert len(self.ports) == int(num) - 1, "Switch ports are not numbers consecutively?"
 
                     port = Port(self, int(num), speed, speed_setting, flow_control, link_status, description)
@@ -872,7 +872,7 @@ class FS726T(metaclass=urwid.MetaSignals):
             # id (e.g., order of creation, one-based)
             internal_id = len(self.vlans) + 1
             # The first td shows the 802.11q id
-            dotq_id = int(tds[0].text)
+            dotq_id = int(tds[0].text.strip())
 
             # Create the vlan descriptor
             name = self.config['vlan_names'].get('vlan%d' % dotq_id, '')
@@ -884,15 +884,15 @@ class FS726T(metaclass=urwid.MetaSignals):
             for port in self.ports:
                 # We skip td[0] (which contains a header), since we use
                 # the 1-based port number
-                td = tds[port.num]
-                if td.text == '':
+                text = tds[port.num].text.strip()
+                if text == '':
                     vlan.ports[port] = Vlan.NOTMEMBER
-                elif td.text == 'T':
+                elif text == 'T':
                     vlan.ports[port] = Vlan.TAGGED
-                elif td.text == 'U':
+                elif text == 'U':
                     vlan.ports[port] = Vlan.UNTAGGED
                 else:
-                    sys.stderr.write('Ignoring unknown vlan/port status: %s \n' % td.vlaue)
+                    sys.stderr.write('Ignoring unknown vlan/port status: %s \n' % text)
 
         self.max_vlan_internal_id = len(self.vlans)
 
@@ -913,7 +913,7 @@ class FS726T(metaclass=urwid.MetaSignals):
             if (tds):
                 # Each row contains info for four ports, so iterate them
                 for port_tds in (tds[0:2], tds[2:4], tds[4:6], tds[6:8]):
-                    (num, pvid) = [td.text for td in port_tds]
+                    (num, pvid) = [td.text.strip() for td in port_tds]
                     if num:
                         # We set the internal value here, to prevent a
                         # change being generated in the changelist.
