@@ -24,7 +24,8 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-import urllib, urllib2
+import urllib
+import io
 import re
 import sys
 import time
@@ -35,7 +36,6 @@ import validate
 import collections
 from BeautifulSoup import BeautifulSoup
 import urwid
-from StringIO import StringIO
 
 config_filename = os.path.expanduser("~/.config/vlan-admin.conf")
 
@@ -102,7 +102,7 @@ class VlanNameChange(Change):
         # In all other cases, keep all of them
         return (self, [other])
 
-    def __unicode__(self):
+    def __str__(self):
         return 'Changing vlan %d name to: %s' % (self.what.dotq_id, self.how)
 
 class AddVlanChange(Change):
@@ -135,7 +135,7 @@ class AddVlanChange(Change):
 
         return (self, [other])
 
-    def __unicode__(self):
+    def __str__(self):
         return 'Adding vlan %d' % (self.what.dotq_id)
 
 class DeleteVlanChange(Change):
@@ -167,7 +167,7 @@ class DeleteVlanChange(Change):
         else:
                 return (self, [other])
 
-    def __unicode__(self):
+    def __str__(self):
         return 'Removing vlan %d' % (self.what.dotq_id)
 
 class PortDescriptionChange(Change):
@@ -196,7 +196,7 @@ class PortDescriptionChange(Change):
         # In all other cases, keep all of them
         return (self, [other])
 
-    def __unicode__(self):
+    def __str__(self):
         return 'Changing port %d description to: %s' % (self.what.num, self.how)
 
 class PortPVIDChange(Change):
@@ -225,7 +225,7 @@ class PortPVIDChange(Change):
         # In all other cases, keep all of them
         return (self, [other])
 
-    def __unicode__(self):
+    def __str__(self):
         return 'Changing PVID for port %d to %d' % (self.what.num, self.how)
 
 class PortVlanMembershipChange(Change):
@@ -257,7 +257,7 @@ class PortVlanMembershipChange(Change):
         # In all other cases, keep both of them
         return (self, [other])
 
-    def __unicode__(self):
+    def __str__(self):
         display = {Vlan.TAGGED: "tagged", Vlan.UNTAGGED: "untagged"}
 
         if self.old == Vlan.NOTMEMBER:
@@ -267,14 +267,13 @@ class PortVlanMembershipChange(Change):
         else:
             return 'Changing port %d in vlan %d from %s to %s' % (self.port.num, self.vlan.dotq_id, display[self.old], display[self.how])
 
-class Vlan(object):
+class Vlan(metaclass=urwid.MetaSignals):
     # Constants for the PortVLanMembershipChange. The values are also
     # the ones used by the FS726 HTTP interface.
     NOTMEMBER = 0
     TAGGED = 1
     UNTAGGED = 2
 
-    __metaclass__ = urwid.MetaSignals
     signals = ['memberships_changed', 'details_changed']
 
     def _emit(self, name, *args):
@@ -334,8 +333,7 @@ class Vlan(object):
     def __repr__(self):
         return u"VLAN %s: %s (802.11q ID %s)" % (self.internal_id, self.name, self.dotq_id)
 
-class Port(object):
-    __metaclass__ = urwid.MetaSignals
+class Port(metaclass=urwid.MetaSignals):
     signals = ['details_changed']
 
     def _emit(self, name, *args):
@@ -393,9 +391,7 @@ class Port(object):
     def __repr__(self):
         return u"Port %s: %s (speed: %s, speed setting: %s, flow control: %s, link status = %s)" % (self.num, self.description, self.speed, self.speed_setting, self.flow_control, self.link_status)
 
-class FS726T(object):
-    # Autoregister signals
-    __metaclass__ = urwid.MetaSignals
+class FS726T(metaclass=urwid.MetaSignals):
     signals = ['changelist_changed', 'details_changed', 'portlist_changed', 'vlanlist_changed', 'status_changed']
 
     def __init__(self, address = None, password = None, config = None):
@@ -487,15 +483,15 @@ class FS726T(object):
 
         url = "http://%s%s" % (self.address, path)
 
-        if data and not isinstance(data, basestring):
-            data = urllib.urlencode(data)
+        if data and not isinstance(data, str):
+            data = urllib.parse.urlencode(data).encode()
 
         if data != None:
             log("HTTP POST request to %s (POST data %s)" % (url, str(data)))
         else:
             log("HTTP GET request to %s" % url)
 
-        response = urllib2.urlopen(url, data).read()
+        response = urllib.request.urlopen(url, data).read().decode()
         log('Done')
 
         if auto_login and "<input type=submit value=' Login '>" in response:
@@ -539,7 +535,7 @@ class FS726T(object):
         """
         try:
             self.request("/cgi/logout", status = "Logging out...", auto_login=False)
-        except urllib2.HTTPError,e:
+        except urllib.error.HTTPError as e:
             if e.code == 404:
                 sys.stderr.write("Ignoring logout error, we're probably not logged in.\n")
             else:
@@ -635,7 +631,7 @@ class FS726T(object):
         # change the PVID of a port to a vlan it's not a member of (and
         # conversely, you can't remove a port from a vlan that's set as
         # its PVID).
-        for vlan, ports in first_pass.iteritems():
+        for vlan, ports in first_pass.items():
             if vlan in second_pass:
                 # If we run this vlan again in the second pass, just
                 # commit the ports that really need to be before the
@@ -768,9 +764,9 @@ class FS726T(object):
             self.parse_status(soup)
             self._emit('details_changed')
             self._emit('portlist_changed')
-        except AttributeError as e:
+        except AttributeError:
             # Print HTML for debugging
-            print soup
+            print(soup)
             raise
 
         self._emit('status_changed', None)
@@ -787,8 +783,8 @@ class FS726T(object):
 
         for row in rows:
             tds = row.findAll('td')
-            key = remove_html_tags(tds[0].text)
-            value = remove_html_tags(tds[1].text)
+            key = remove_html_tags(tds[0].text.strip())
+            value = remove_html_tags(tds[1].text.strip())
             if key == 'Product Name':
                 self.product = value
             elif key == 'Firmware Version':
@@ -1091,7 +1087,7 @@ class PortVlanWidget(urwid.FlowWidget):
 
     def render(self, size, focus=False):
         cols, = size
-        text = " " * ((cols - 2) / 2)
+        text = " " * ((cols - 2) // 2)
         member = self.vlan.ports[self.port]
         if member == Vlan.TAGGED:
             text += "TT"
@@ -1106,9 +1102,9 @@ class PortVlanWidget(urwid.FlowWidget):
         if focus:
             attr += "_focus"
 
-        text += " " * (cols - 2 - ((cols - 2) / 2))
+        text += " " * (cols - 2 - ((cols - 2) // 2))
 
-        return urwid.TextCanvas([text], [[(attr, len(text))]])
+        return urwid.TextCanvas([text.encode()], [[(attr, len(text))]])
 
     def rows(self, size, focus=False):
         return 1
@@ -1141,9 +1137,10 @@ class TopLine(urwid.LineBox):
     A box like LineBox, but containing just the top line
     """
     def __init__(self, original_widget, title = ''):
-        super(TopLine, self).__init__(original_widget, title,
-            tlcorner = u' ', trcorner = u' ', blcorner = u' ', 
-            brcorner = u' ', rline = u' ', lline = u' ', bline = u' ')
+        super(TopLine, self).__init__(
+            original_widget, title,
+            tlcorner=' ', trcorner=' ', blcorner=' ',
+            brcorner=' ', rline=' ', lline=' ', bline=' ')
 
 class KeypressAdapter(urwid.WidgetPlaceholder):
     """
@@ -1467,7 +1464,7 @@ class Interface(object):
 
     def fill_changelist(self, switch):
         if switch.changes:
-            text = u'\n'.join([unicode(c) for c in switch.changes])
+            text = '\n'.join([str(c) for c in switch.changes])
         else:
             text = 'No changes'
         self.changelist.set_text(text)
@@ -1480,7 +1477,7 @@ class Interface(object):
             try:
                 self.switch.commit_all()
             except CommitException as e:
-                self.show_popup(unicode(e))
+                self.show_popup(str(e))
         else:
             log("Unhandled keypress: %s" % str(key))
 
@@ -1598,7 +1595,7 @@ def main():
     logfile = open('vlan-admin.log', 'a')
 
     # Create the switch object
-    config = configobj.ConfigObj(infile = config_filename, configspec = StringIO(configspec), create_empty = True, encoding='UTF8')
+    config = configobj.ConfigObj(infile=config_filename, configspec=io.StringIO(configspec), create_empty=True, encoding='UTF8')
     config.validate(validate.Validator())
 
     if load:
