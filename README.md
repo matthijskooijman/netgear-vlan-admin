@@ -13,6 +13,14 @@ not terribly robust or portable, but it works well enough.
 
 ![Screenshot](doc/screenshot.png)
 
+Dependencies
+------------
+Python3, with a number of packages:
+
+```
+pip install configobj beautifulsoup4 urwid
+```
+
 Configuration
 -------------
 To configure the switch's IP address and password, modify vlan-admin.py.
