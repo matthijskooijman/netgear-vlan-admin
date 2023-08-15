@@ -48,6 +48,7 @@ load = False
 
 logfile = None
 
+
 def log(text):
     if logfile:
         logfile.write(text + "\n")
@@ -59,11 +60,14 @@ def log(text):
         # with write == True
         print(text)
 
+
 class CommitException(Exception):
     pass
 
+
 class LoginException(Exception):
     pass
+
 
 class Change(object):
     def __init__(self, what, how, old):
@@ -76,6 +80,7 @@ class Change(object):
         self.how = how
         self.old = old
 
+
 class VlanNameChange(Change):
     """
     Record the change of a vlan name. Constructor arguments:
@@ -85,8 +90,7 @@ class VlanNameChange(Change):
     """
 
     def merge_with(self, other):
-        if (isinstance(other, VlanNameChange) and
-            other.what == self.what):
+        if (isinstance(other, VlanNameChange) and other.what == self.what):
 
             if (self.how == other.old):
                 # This changes cancels the other change, remove them
@@ -105,6 +109,7 @@ class VlanNameChange(Change):
     def __str__(self):
         return 'Changing vlan %d name to: %s' % (self.what.dotq_id, self.how)
 
+
 class AddVlanChange(Change):
     """
     Record the addition of a vlan. Constructor arguments:
@@ -113,30 +118,31 @@ class AddVlanChange(Change):
     old: None
     """
     def merge_with(self, other):
-        if (isinstance(other, DeleteVlanChange) and
-            other.what.dotq_id == self.what.dotq_id):
-                # When re-adding a vlan wit the same dotq_id, we re-use
-                # the existing vlan in the switch. Ideally, we would
-                # just delete the vlan and then create a new one, but
-                # we can't always find an ordering of operations that
-                # satisfies all dependencies (especially when
-                # considering PVIDs).
-                self.what.internal_id = other.what.internal_id
-                changes = []
-                # Instead of deleting the vlan, we now have to record
-                # all changes to turn it into a brand new vlan
-                # separately.
-                if self.what.name != other.what.name:
-                    changes.append(VlanNameChange(self.what, self.what.name, other.what.name))
-                for port in self.what.ports:
-                    if self.what.ports[port] != other.what.ports[port]:
-                        changes.append(PortVlanMembershipChange((port, self.what), self.what.ports[port], other.what.ports[port]))
-                return (None, changes)
+        if (isinstance(other, DeleteVlanChange) and other.what.dotq_id == self.what.dotq_id):
+            # When re-adding a vlan wit the same dotq_id, we re-use
+            # the existing vlan in the switch. Ideally, we would
+            # just delete the vlan and then create a new one, but
+            # we can't always find an ordering of operations that
+            # satisfies all dependencies (especially when
+            # considering PVIDs).
+            self.what.internal_id = other.what.internal_id
+            changes = []
+            # Instead of deleting the vlan, we now have to record
+            # all changes to turn it into a brand new vlan
+            # separately.
+            if self.what.name != other.what.name:
+                changes.append(VlanNameChange(self.what, self.what.name, other.what.name))
+            for port in self.what.ports:
+                if self.what.ports[port] != other.what.ports[port]:
+                    changes.append(PortVlanMembershipChange(
+                        (port, self.what), self.what.ports[port], other.what.ports[port]))
+            return (None, changes)
 
         return (self, [other])
 
     def __str__(self):
         return 'Adding vlan %d' % (self.what.dotq_id)
+
 
 class DeleteVlanChange(Change):
     """
@@ -146,29 +152,27 @@ class DeleteVlanChange(Change):
     old: None
     """
     def merge_with(self, other):
-        if (isinstance(other, VlanNameChange) and
-            other.what == self.what):
-                # No need to change the name of a removed vlan (but do
-                # copy the old value, in case we are later merged with
-                # an AddVlanChange)
-                self.what.name = other.old
-                return (self, [])
-        elif (isinstance(other, PortVlanMembershipChange) and
-              other.vlan == self.what):
-                # No need to change memberships in a removed vlan (but
-                # do copy the old value, in case we are later merged
-                # with an AddVlanChange)
-                self.what.ports[other.port] = other.old
-                return (self, [])
-        elif (isinstance(other, AddVlanChange) and
-              other.what == self.what):
-                # Removing a previously added vlan cancels both changes
-                return (None, [])
+        if (isinstance(other, VlanNameChange) and other.what == self.what):
+            # No need to change the name of a removed vlan (but do
+            # copy the old value, in case we are later merged with
+            # an AddVlanChange)
+            self.what.name = other.old
+            return (self, [])
+        elif (isinstance(other, PortVlanMembershipChange) and other.vlan == self.what):
+            # No need to change memberships in a removed vlan (but
+            # do copy the old value, in case we are later merged
+            # with an AddVlanChange)
+            self.what.ports[other.port] = other.old
+            return (self, [])
+        elif (isinstance(other, AddVlanChange) and other.what == self.what):
+            # Removing a previously added vlan cancels both changes
+            return (None, [])
         else:
-                return (self, [other])
+            return (self, [other])
 
     def __str__(self):
         return 'Removing vlan %d' % (self.what.dotq_id)
+
 
 class PortDescriptionChange(Change):
     """
@@ -179,9 +183,7 @@ class PortDescriptionChange(Change):
     """
 
     def merge_with(self, other):
-        if (isinstance(other, PortDescriptionChange) and
-            other.what == self.what):
-
+        if (isinstance(other, PortDescriptionChange) and other.what == self.what):
             if (self.how == other.old):
                 # This changes cancels the other change, remove them
                 # both
@@ -199,6 +201,7 @@ class PortDescriptionChange(Change):
     def __str__(self):
         return 'Changing port %d description to: %s' % (self.what.num, self.how)
 
+
 class PortPVIDChange(Change):
     """
     Record the change of a vlan name. Constructor arguments:
@@ -208,9 +211,7 @@ class PortPVIDChange(Change):
     """
 
     def merge_with(self, other):
-        if (isinstance(other, PortPVIDChange) and
-            other.what == self.what):
-
+        if (isinstance(other, PortPVIDChange) and other.what == self.what):
             if (self.how == other.old):
                 # This change cancels the other change, remove them
                 # both
@@ -228,6 +229,7 @@ class PortPVIDChange(Change):
     def __str__(self):
         return 'Changing PVID for port %d to %d' % (self.what.num, self.how)
 
+
 class PortVlanMembershipChange(Change):
     """
     Record the change of membership of a given Port in a given Vlan.
@@ -240,8 +242,7 @@ class PortVlanMembershipChange(Change):
     vlan = property(lambda self: self.what[1])
 
     def merge_with(self, other):
-        if (isinstance(other, PortVlanMembershipChange) and
-            other.what == self.what):
+        if (isinstance(other, PortVlanMembershipChange) and other.what == self.what):
 
             if (self.how == other.old):
                 # This changes cancels the other change, remove them
@@ -265,7 +266,9 @@ class PortVlanMembershipChange(Change):
         elif self.how == Vlan.NOTMEMBER:
             return 'Removing port %d from vlan %d' % (self.port.num, self.vlan.dotq_id)
         else:
-            return 'Changing port %d in vlan %d from %s to %s' % (self.port.num, self.vlan.dotq_id, display[self.old], display[self.how])
+            return 'Changing port %d in vlan %d from %s to %s' % (
+                self.port.num, self.vlan.dotq_id, display[self.old], display[self.how])
+
 
 class Vlan(metaclass=urwid.MetaSignals):
     # Constants for the PortVLanMembershipChange. The values are also
@@ -333,6 +336,7 @@ class Vlan(metaclass=urwid.MetaSignals):
     def __repr__(self):
         return u"VLAN %s: %s (802.11q ID %s)" % (self.internal_id, self.name, self.dotq_id)
 
+
 class Port(metaclass=urwid.MetaSignals):
     signals = ['details_changed']
 
@@ -342,9 +346,6 @@ class Port(metaclass=urwid.MetaSignals):
         argument.
         """
         urwid.emit_signal(self, name, self, *args)
-
-    def __init__(self):
-        pass
 
     def __init__(self, switch, num, speed, speed_setting, flow_control, link_status, description):
         """
@@ -360,7 +361,7 @@ class Port(metaclass=urwid.MetaSignals):
         self.link_status = link_status
         self._description = description
 
-        self._pvid = None # Should be set afterwards
+        self._pvid = None  # Should be set afterwards
 
         super(Port, self).__init__()
 
@@ -389,12 +390,14 @@ class Port(metaclass=urwid.MetaSignals):
     up = property(lambda self: self.link_status != 'Down')
 
     def __repr__(self):
-        return u"Port %s: %s (speed: %s, speed setting: %s, flow control: %s, link status = %s)" % (self.num, self.description, self.speed, self.speed_setting, self.flow_control, self.link_status)
+        return u"Port %s: %s (speed: %s, speed setting: %s, flow control: %s, link status = %s)" % (
+            self.num, self.description, self.speed, self.speed_setting, self.flow_control, self.link_status)
+
 
 class FS726T(metaclass=urwid.MetaSignals):
     signals = ['changelist_changed', 'details_changed', 'portlist_changed', 'vlanlist_changed', 'status_changed']
 
-    def __init__(self, address = None, password = None, config = None):
+    def __init__(self, address=None, password=None, config=None):
         self.address = address
         self.password = password
         self.ports = []
@@ -477,7 +480,7 @@ class FS726T(metaclass=urwid.MetaSignals):
         # Always call this, just in case something changed
         self._emit('changelist_changed')
 
-    def request(self, path, data = None, status = None, auto_login=True):
+    def request(self, path, data=None, status=None, auto_login=True):
         if status:
             self._emit('status_changed', status)
 
@@ -486,7 +489,7 @@ class FS726T(metaclass=urwid.MetaSignals):
         if data and not isinstance(data, str):
             data = urllib.parse.urlencode(data).encode()
 
-        if data != None:
+        if data is not None:
             log("HTTP POST request to %s (POST data %s)" % (url, str(data)))
         else:
             log("HTTP GET request to %s" % url)
@@ -520,7 +523,10 @@ class FS726T(metaclass=urwid.MetaSignals):
             return
 
         # See if we can find an error message
-        error = re.search("<font color=#336699 size=3><br><b>(.*)<br><br><input type=submit value='Continue'><br><br>", html)
+        error = re.search(
+            "<font color=#336699 size=3><br><b>(.*)<br><br><input type=submit value='Continue'><br><br>",
+            html,
+        )
         if (error):
             raise LoginException("Error occured at login. Device said: %s" % error.group(1))
 
@@ -534,13 +540,12 @@ class FS726T(metaclass=urwid.MetaSignals):
         session timeout before you can log in again.
         """
         try:
-            self.request("/cgi/logout", status = "Logging out...", auto_login=False)
+            self.request("/cgi/logout", status="Logging out...", auto_login=False)
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 sys.stderr.write("Ignoring logout error, we're probably not logged in.\n")
             else:
                 raise
-
 
     def commit_all(self):
         def changes_of_type(type):
@@ -595,7 +600,6 @@ class FS726T(metaclass=urwid.MetaSignals):
             else:
                 assert False, "Unknown change type? (%s)" % (type(change))
 
-
         def commit_memberships(vlan, ports):
             """
             Helper function to commit the changes in the given vlan (for
@@ -606,13 +610,13 @@ class FS726T(metaclass=urwid.MetaSignals):
 
             # Find the new (or old) value for each of the ports
             for port in self.ports:
-                if not port in changes:
-                        # Just use the old (unmodified) value
-                        changelist.append(vlan.ports[port])
+                if port not in changes:
+                    # Just use the old (unmodified) value
+                    changelist.append(vlan.ports[port])
                 else:
                     (new, old) = changes[port]
 
-                    if not port in ports:
+                    if port not in ports:
                         # Don't commit this value yet, use the old value
                         changelist.append(old)
                     else:
@@ -688,7 +692,7 @@ class FS726T(metaclass=urwid.MetaSignals):
         """
         # Do not change the order of parameters, that breaks the request :-S
         data = [
-            ('portset', port.num - 1), # "portset" numbers from 0
+            ('portset', port.num - 1),  # "portset" numbers from 0
             ('port_des', name),
             ('post_url', '/cgi/portdetail'),
         ]
@@ -709,7 +713,7 @@ class FS726T(metaclass=urwid.MetaSignals):
         # If no internal id is present yet, assign the next one. Calling
         # setvid with a non-existing tag_id will make the switch
         # conveniently create the vlan.
-        if vlan.internal_id == None:
+        if vlan.internal_id is None:
             self.max_vlan_internal_id += 1
             vlan.internal_id = self.max_vlan_internal_id
             status = "Creating vlan %d..." % (vlan.dotq_id)
@@ -855,11 +859,6 @@ class FS726T(metaclass=urwid.MetaSignals):
 
         rows = table.findAll('tr')
 
-        # The second row contains a header td for every port (but no leading
-        # td like the rows below, since the first row starts with a
-        # rowspan="2" td).
-        port_count = len(rows[1].findAll('td'))
-
         # The top two rows are the header (but nobody bothered putting them
         # in a thead, of course)
         vlan_rows = rows[2:]
@@ -919,6 +918,7 @@ class FS726T(metaclass=urwid.MetaSignals):
                         # change being generated in the changelist.
                         self.ports[int(num) - 1]._pvid = int(pvid)
 
+
 class DisableEdit(urwid.Edit):
     def __init__(self, *args, **kwargs):
         super(DisableEdit, self).__init__(*args, **kwargs)
@@ -931,6 +931,7 @@ class DisableEdit(urwid.Edit):
         # Pretend we're always unfocused when we're disabled, to prevent
         # rendering the cursor
         return super(DisableEdit, self).render(size, not self.disabled and focus)
+
 
 class PortVlanMatrix(urwid.WidgetWrap):
     """
@@ -979,6 +980,7 @@ class PortVlanMatrix(urwid.WidgetWrap):
         # Create a row for each vlan
         for vlan in self.switch.vlans:
             widget = urwid.Text("")
+
             def update_vlan_header(vlan_header, vlan):
                 vlan_header.set_text("%4s: %s" % (vlan.dotq_id, vlan.name))
             update_vlan_header(widget, vlan)
@@ -1000,7 +1002,6 @@ class PortVlanMatrix(urwid.WidgetWrap):
 
         self._w = urwid.Pile(rows)
 
-
     def keypress(self, size, key):
         def add_vlan(input):
             try:
@@ -1010,7 +1011,8 @@ class PortVlanMatrix(urwid.WidgetWrap):
                 return
 
             if dotq_id < 1 or dotq_id > 4094:
-                self.interface.show_popup("Invalid VLAN id: '%d' (valid values range from 1 up to and including 4094)" % dotq_id)
+                self.interface.show_popup(
+                    "Invalid VLAN id: '%d' (valid values range from 1 up to and including 4094)" % dotq_id)
                 return
 
             if dotq_id in self.switch.dotq_vlans:
@@ -1115,6 +1117,7 @@ class PortVlanWidget(urwid.FlowWidget):
     def rows(self, size, focus=False):
         return 1
 
+
 class PortWidget(urwid.Text):
     """
     Class to display and edit a port.
@@ -1127,7 +1130,7 @@ class PortWidget(urwid.Text):
 
     def set_text(self, text):
         # ignored
-        if text != None:
+        if text is not None:
             raise NotImplementedError()
 
     def get_text(self):
@@ -1138,15 +1141,17 @@ class PortWidget(urwid.Text):
     def keypress(self, size, key):
         return key
 
+
 class TopLine(urwid.LineBox):
     """
     A box like LineBox, but containing just the top line
     """
-    def __init__(self, original_widget, title = ''):
+    def __init__(self, original_widget, title=''):
         super(TopLine, self).__init__(
             original_widget, title,
             tlcorner=' ', trcorner=' ', blcorner=' ',
             brcorner=' ', rline=' ', lline=' ', bline=' ')
+
 
 class KeypressAdapter(urwid.WidgetPlaceholder):
     """
@@ -1172,11 +1177,13 @@ class KeypressAdapter(urwid.WidgetPlaceholder):
         # Make sure we get keypresses
         return True
 
+
 # Support vim key bindings in the default widgets
 urwid.command_map['j'] = 'cursor down'
 urwid.command_map['k'] = 'cursor up'
 urwid.command_map['h'] = 'cursor left'
 urwid.command_map['l'] = 'cursor right'
+
 
 class Interface(object):
     focus_text = 'black'
@@ -1232,7 +1239,6 @@ class Interface(object):
             ('Uptime', 'uptime', False),
         ]
     ]
-
 
     def __init__(self, switch):
         self.switch = switch
@@ -1304,6 +1310,7 @@ class Interface(object):
 
         self.matrix = PortVlanMatrix(self, self.switch, vlan_keypress_handler)
         matrix = urwid.Padding(TopLine(self.matrix, 'VLAN / Port mappings'), align='center')
+
         def update_matrix(switch):
             self.matrix.create_widgets()
             # Focus the matrix
@@ -1313,13 +1320,11 @@ class Interface(object):
         urwid.connect_signal(self.switch, 'portlist_changed', update_matrix)
         urwid.connect_signal(self.switch, 'vlanlist_changed', update_matrix)
 
-
         pile = urwid.Pile([('flow', switch_details),
                            ('flow', matrix),
                            ('flow', bottom),
                            ('flow', changelist),
-                           ('flow', dbg),
-                          ])
+                           ('flow', dbg)])
 
         def main_keypress_handler(widget, size, key):
             if key == 'tab':
@@ -1335,7 +1340,7 @@ class Interface(object):
             return None
 
         body = KeypressAdapter(pile, main_keypress_handler)
-        self.main_widget = urwid.Filler(body, valign = 'top')
+        self.main_widget = urwid.Filler(body, valign='top')
 
     @property
     def overlay_widget(self):
@@ -1348,13 +1353,13 @@ class Interface(object):
             widget = urwid.Padding(widget, left=1, right=1, width=('relative', 100))
             widget = urwid.LineBox(widget)
             widget = urwid.AttrMap(widget, 'overlay')
-            overlay= urwid.Overlay(
-                top_w = widget,
-                bottom_w = self.main_widget,
-                align = 'center',
-                width = 75,
-                valign = ('fixed top', 4),
-                height = 10,
+            overlay = urwid.Overlay(
+                top_w=widget,
+                bottom_w=self.main_widget,
+                align='center',
+                width=75,
+                valign=('fixed top', 4),
+                height=10,
             )
             self.loop.widget = overlay
         else:
@@ -1376,7 +1381,7 @@ class Interface(object):
         log("Starting mainloop")
         self.loop.run()
 
-    def create_details(self, attrs, widget_dict, gridflow = False):
+    def create_details(self, attrs, widget_dict, gridflow=False):
         """
         Create a widget showing attributes of an object as specified in
         attrs. Is initially empty, call fill_details to fill in info.
@@ -1386,7 +1391,7 @@ class Interface(object):
 
         Returns the Widget created.
         """
-        max_label_width = max([len(l) for c in attrs for (l, a, e) in c ])
+        max_label_width = max([len(l) for c in attrs for (l, a, e) in c])
 
         top_columns = []
         for column in attrs:
@@ -1397,6 +1402,7 @@ class Interface(object):
                     widget = DisableEdit()
                     # fill_details will store the object displayed in here
                     widget.obj = None
+
                     def detail_changed(widget, text, attr):
                         if widget.obj:
                             setattr(widget.obj, attr, text)
@@ -1461,7 +1467,7 @@ class Interface(object):
             # change.
             def update_details(obj):
                 self.fill_details(attrs, widget_dict, obj)
-            if not obj is None:
+            if obj is not None:
                 urwid.connect_signal(obj, 'details_changed', update_details)
 
                 # Store the signal handler, since we need it to be identical
@@ -1514,7 +1520,7 @@ class Interface(object):
         widget = KeypressAdapter(widget, hide_on_keypress)
         self.overlay_widget = urwid.Filler(widget)
 
-    def yesno_popup(self, text, yes_callback, no_callback = None):
+    def yesno_popup(self, text, yes_callback, no_callback=None):
         """
         Show a popup that allows to confirm/decline using y/n.
         """
@@ -1537,8 +1543,7 @@ class Interface(object):
         body = urwid.Filler(text, valign='top')
         self.overlay_widget = urwid.Frame(body, footer=help)
 
-
-    def input_popup(self, text, callback, cancel = None):
+    def input_popup(self, text, callback, cancel=None):
         """
         Show a popup that allows to enter text. When enter is pressed,
         the given callback is called with the entered text. When f10 is
@@ -1564,6 +1569,7 @@ class Interface(object):
 
         body = urwid.Filler(edit, valign='top')
         self.overlay_widget = urwid.Frame(body, header=text, footer=help)
+
     def try_delete_vlan(self, vlan):
         ports = [str(p.num) for p in self.switch.ports if p.pvid == vlan.dotq_id]
         if ports:
@@ -1582,6 +1588,7 @@ class Interface(object):
         # handler which takes a while to copmlete, for example).
         self.loop.draw_screen()
 
+
 def remove_html_tags(data):
     p = re.compile(r'<.*?>')
     return p.sub('', data)
@@ -1595,13 +1602,19 @@ configspec = """
 __many__ = string()
 """
 
+
 def main():
     global ui, logfile
 
     logfile = open('vlan-admin.log', 'a')
 
     # Create the switch object
-    config = configobj.ConfigObj(infile=config_filename, configspec=io.StringIO(configspec), create_empty=True, encoding='UTF8')
+    config = configobj.ConfigObj(
+        infile=config_filename,
+        configspec=io.StringIO(configspec),
+        create_empty=True,
+        encoding='UTF8',
+    )
     config.validate(validate.Validator())
 
     if load:
@@ -1630,6 +1643,7 @@ def main():
     switch.config.write()
 
     logfile.close()
+
 
 if __name__ == '__main__':
     main()
