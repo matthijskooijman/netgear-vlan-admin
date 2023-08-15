@@ -1037,6 +1037,12 @@ class PortVlanMatrix(urwid.WidgetWrap):
         rows = self.rows((columns,))
         return (columns, rows)
 
+    # Always mark ourselves as selectable, even if we are still empty at
+    # initialization, since Columns and Pile cache their contents
+    # selectability once during init only. This might be a bug, but this
+    # is an effective workaround.
+    def selectable(self):
+        return True
 
 
 class PortVlanWidget(urwid.FlowWidget):
