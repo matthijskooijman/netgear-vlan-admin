@@ -779,7 +779,7 @@ class FS726T(metaclass=urwid.MetaSignals):
         #####################################
         # Parse switch information
         #####################################
-        h1 = soup.find(text="Switch Status")
+        h1 = soup.find(string="Switch Status")
         h1_table = h1.findParent('table')
         table = h1_table.findNext("table")
 
@@ -821,7 +821,7 @@ class FS726T(metaclass=urwid.MetaSignals):
         #####################################
         # Parse port information
         #####################################
-        h1 = soup.find(text="PORT Status").parent
+        h1 = soup.find(string="PORT Status").parent
         table = h1.findNext("table")
 
         rows = table.findAll('tr')
@@ -854,7 +854,7 @@ class FS726T(metaclass=urwid.MetaSignals):
         #####################################
         # Parse vlan information
         #####################################
-        h1 = soup.find(text="IEEE 802.1Q VLAN Settings").parent
+        h1 = soup.find(string="IEEE 802.1Q VLAN Settings").parent
         table = h1.findNext("table")
 
         rows = table.findAll('tr')
@@ -898,7 +898,7 @@ class FS726T(metaclass=urwid.MetaSignals):
         #####################################
         # Parse PVID information
         #####################################
-        h1 = soup.find(text="IEEE 802.1Q PVID Table").parent
+        h1 = soup.find(string="IEEE 802.1Q PVID Table").parent
         table = h1.findNext("table")
 
         rows = table.findAll('tr')
