@@ -24,7 +24,9 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-import urllib
+import urllib.error
+import urllib.parse
+import urllib.request
 import io
 import re
 import sys
