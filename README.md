@@ -62,7 +62,7 @@ using the tab key. Use the arrow keys to navigate through the mappings
 and use "t", "u" and space to select tagged, untagged and not connected for
 each vlan/port combination.
 
-Use F11 to commit any pending changes and F10, or q to quit.
+Use F11, or c to commit any pending changes and F10, or q to quit.
 
 License
 -------
