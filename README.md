@@ -18,7 +18,7 @@ Dependencies
 Python3, with a number of packages:
 
 ```
-pip install configobj beautifulsoup4 urwid
+pip install configobj beautifulsoup4 urwid lxml
 ```
 
 Configuration

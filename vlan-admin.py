@@ -762,7 +762,13 @@ class FS726T(metaclass=urwid.MetaSignals):
         self.request("/cgi/setvid=%s" % (vlan.internal_id), data, "Deleting vlan %d..." % (vlan.dotq_id))
 
     def get_status(self):
-        soup = bs4.BeautifulSoup(self.request("/cgi/device", status="Retrieving switch status..."))
+        soup = bs4.BeautifulSoup(
+            self.request("/cgi/device", status="Retrieving switch status..."),
+            # Force using the lxml parser, since the builtin python
+            # parser does not handle the incorrect HTML produced by the
+            # switch correctly...
+            'lxml',
+        )
 
         try:
             self.parse_status(soup)
