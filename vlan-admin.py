@@ -1055,10 +1055,12 @@ class PortVlanMatrix(urwid.WidgetWrap):
         return True
 
 
-class PortVlanWidget(urwid.FlowWidget):
+class PortVlanWidget(urwid.Widget):
     """
     Class to display and edit a port / vlan combination.
     """
+
+    _sizing = frozenset(['flow'])
 
     def __init__(self, interface, port, vlan):
         super(PortVlanWidget, self).__init__()
