@@ -15,16 +15,39 @@ not terribly robust or portable, but it works well enough.
 
 Dependencies
 ------------
-Python3, with a number of packages:
+Python3.7, with a number of packages:
 
 ```
 pip install configobj beautifulsoup4 urwid lxml
 ```
 
+Installation
+------------
+Easiest is to install with `pipx` (`apt install pipx`), which creates
+a dedicated Python virtualenv and installs the `vlan_admin` and all
+dependencies into that, linking the executable into `~/.local/bin` (so
+make sure that's in your `$PATH`):
+
+
+```
+pipx install git+https://github.com/matthijskooijman/netgear-vlan-admin.git
+```
+
+Alternatively, if you have a local clone of the project, you can:
+
+```
+pipx install /path/to/netgear-vlan-admin
+```
+
+The same commands above also work with regular `pip` instead of `pipx`,
+but then you will have to manually set up a virtualenv, or install into
+your global or user-wide Python environments instead (which can be
+slightly more messy but is not a problem).
+
 Configuration
 -------------
-To configure the switch's IP address and password, modify vlan-admin.py.
-Look for this line:
+To configure the switch's IP address and password, modify
+`vlan_admin/vlan_admin.py`. Look for this line:
 
         switch = FS726T('192.168.1.253', 'password', config)
 

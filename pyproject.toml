@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "vlan-admin"
+version = "0.1.0-dev"
+description = ""
+authors = ["Matthijs Kooijman <matthijs@stdin.nl>"]
+readme = "README.md"
+packages = [{include = "vlan_admin"}]
+repository = "https://github.com/matthijskooijman/netgear-vlan-admin"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+configobj = "^5.0"
+beautifulsoup4 = "^4.4"
+urwid = "^2.0"
+lxml = "^4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+vlan-admin = "vlan_admin.vlan_admin:main"
