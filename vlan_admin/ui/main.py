@@ -2,7 +2,7 @@ import urwid
 
 from .widgets import DisableEdit, KeypressAdapter, PortVlanMatrix, TopLine
 
-from ..backends.fs726t import CommitException
+from ..backends.common import CommitException
 from ..log import log
 
 # Support vim key bindings in the default widgets

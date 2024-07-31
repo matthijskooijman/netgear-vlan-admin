@@ -1,4 +1,286 @@
+import collections
 from urwid import MetaSignals, emit_signal
+import time
+
+
+class CommitException(Exception):
+    pass
+
+
+class Switch(metaclass=MetaSignals):
+    signals = ['changelist_changed', 'details_changed', 'portlist_changed', 'vlanlist_changed', 'status_changed']
+
+    def __init__(self, config=None):
+        self.ports = []
+        self.vlans = []
+        self.dotq_vlans = {}
+        self.config = config
+        self.changes = []
+        self.max_vlan_internal_id = 0
+
+        self.product = None
+        self.firmware_version = None
+        self.protocol_version = None
+        self.ip_config = None
+        self.ip_config = None
+        self.ip_address = None
+        self.ip_netmask = None
+        self.ip_gateway = None
+        self.mac_address = None
+        self.hostname = None
+        self.location = None
+        self.login_timeout = None
+        self.uptime = None
+
+        super().__init__()
+
+    def _emit(self, name, *args):
+        """
+        Convenience function to emit signals with self as first
+        argument.
+        """
+        emit_signal(self, name, self, *args)
+
+    def add_vlan(self, dotq_id):
+        vlan = Vlan(self, None, dotq_id, '')
+        for port in self.ports:
+            vlan.ports[port] = Vlan.NOTMEMBER
+
+        self.vlans.append(vlan)
+        self.dotq_vlans[dotq_id] = vlan
+
+        self.queue_change(AddVlanChange(vlan, None, None))
+
+        self._emit('vlanlist_changed')
+
+    def delete_vlan(self, vlan):
+        # Delete the vlan from the lists
+        self.vlans.remove(vlan)
+        del self.dotq_vlans[vlan.dotq_id]
+
+        self.queue_change(DeleteVlanChange(vlan, None, None))
+
+        self._emit('vlanlist_changed')
+
+    def queue_change(self, new_change):
+        # Make a new changes list to prevent issues with inline
+        # modification (while looping the list)
+        new_changes = []
+        for change in reversed(self.changes):
+            if new_change:
+                # As long as the new_change hasn't removed itself yet,
+                # try to merge it with each change
+                (new_change, changes) = new_change.merge_with(change)
+
+                # And replace the merged-with change with new one(s)
+                # returned (or effectively remove it if an empty list is
+                # returned).
+                new_changes.extend(reversed(changes))
+            else:
+                # If the new change has already cancelled itself, just
+                # preserve the remaining changes.
+                new_changes.append(change)
+
+        new_changes.reverse()
+
+        if new_change:
+            new_changes.append(new_change)
+
+        # Update the changes list
+        self.changes = new_changes
+        # Always call this, just in case something changed
+        self._emit('changelist_changed')
+
+    def do_login(self):
+        # Default to no login needed
+        pass
+
+    def do_logout(self):
+        # Default to no logout needed
+        pass
+
+    def commit_all(self):
+        """
+        Commit all pending changes.
+
+        This method decides the order in which to commit changes. This
+        order was originally written for the FS726T, which is a bit
+        picky about PVID changes (PVID must always point to a vlan the
+        port is member of), but this order probably works well with
+        other switches too.
+        """
+
+        def changes_of_type(type):
+            return [c for c in self.changes if isinstance(c, type)]
+
+        if not self.changes:
+            raise CommitException("No changes to commit")
+
+        self._emit('status_changed', "Committing changes...")
+
+        write_config = False
+
+        # Maps a vlan to a dict that maps port to (newvalue, oldvalue)
+        # tuples. Undefined elements default to the empty dict.
+        memberships = collections.defaultdict(dict)
+
+        # Maps vlans to a list of ports that must be committed before
+        # repsectively after setting the PVIDs. Any vlan/port
+        # combinations not listed in these can be committed at any time.
+        first_pass = collections.defaultdict(list)
+        second_pass = collections.defaultdict(list)
+
+        # Keep a list of vlans to delete
+        delete_vlans = []
+
+        for change in self.changes:
+            if isinstance(change, PortDescriptionChange):
+                self.commit_port_description_change(change.what, change.how)
+            elif isinstance(change, VlanNameChange):
+                self.config['vlan_names']['vlan%d' % change.what.dotq_id] = change.how
+                write_config = True
+            elif isinstance(change, PortPVIDChange):
+                # This port must be added to the vlan new PVID in the
+                # first pass (before setting the PVIDs)
+                first_pass[self.dotq_vlans[change.how]].append(change.what)
+                # This port must be removed to the vlan new PVID in the
+                # second pass (after setting the PVIDs). Don't bother if
+                # the vlan is not in dotq_vlans (i.e. is deleted)
+                if change.old in self.dotq_vlans:
+                    second_pass[self.dotq_vlans[change.old]].append(change.what)
+            elif isinstance(change, PortVlanMembershipChange):
+                memberships[change.vlan][change.port] = (change.how, change.old)
+            elif isinstance(change, AddVlanChange):
+                # Make sure that the vlan has an entry in memberships,
+                # even if no ports need changing.
+                memberships[change.what]
+            elif isinstance(change, DeleteVlanChange):
+                delete_vlans.append(change.what)
+                # Remove the name from the config
+                self.config['vlan_names'].pop('vlan%d' % change.what.dotq_id, None)
+                write_config = True
+            else:
+                assert False, "Unknown change type? (%s)" % (type(change))
+
+        def commit_memberships(vlan, ports):
+            """
+            Helper function to commit the changes in the given vlan (for
+            the given ports only).
+            """
+            changes = memberships[vlan]
+            changelist = []
+
+            # Find the new (or old) value for each of the ports
+            for port in self.ports:
+                if port not in changes:
+                    # Just use the old (unmodified) value
+                    changelist.append(vlan.ports[port])
+                else:
+                    (new, old) = changes[port]
+
+                    if port not in ports:
+                        # Don't commit this value yet, use the old value
+                        changelist.append(old)
+                    else:
+                        # Commit the new value
+                        changelist.append(new)
+
+            self.commit_vlan_memberships(vlan, changelist)
+
+        # Committing vlan memberships happens in two passes: First, we
+        # commit all vlan/port combinations that have to happen before
+        # changing the PVIDs. For efficiency reasons, we commit all
+        # ports for a given vlan if possible (i.e., when no ports have
+        # to wait until the second pass). Then, we commit all the new
+        # PVIDs. Finally, we do a second pass, committing any remaining
+        # vlan/port membership changes. This is needed, since you can't
+        # change the PVID of a port to a vlan it's not a member of (and
+        # conversely, you can't remove a port from a vlan that's set as
+        # its PVID).
+        for vlan, ports in first_pass.items():
+            if vlan in second_pass:
+                # If we run this vlan again in the second pass, just
+                # commit the ports that really need to be before the
+                # PVID changes
+                commit_memberships(vlan, ports)
+            else:
+                # If we don't need to run this vlan again in the second
+                # pass, just commit all ports.
+                commit_memberships(vlan, self.ports)
+                del memberships[vlan]
+
+        # If any pvids should be changed, commit the current (new)
+        # values of all PVIDs. No need to actually look at the
+        # PortPVIDChange objects generated, since we can only set all of
+        # the PVIDs in a single request.
+        if first_pass or second_pass:
+            self.commit_pvids([p.pvid for p in self.ports])
+
+        # And now, the second pass, just commit any remaining changes
+        for vlan in memberships:
+            commit_memberships(vlan, self.ports)
+
+        # Finally, we delete the vlans that need to be deleted. We wait
+        # until after the membership changes since 1) deletion can only
+        # happen after updating PVIDs and 2) deletion messes with the
+        # internal_ids, so it's a lot easier to do them all in go an
+        # then renumber the remaining vlans.
+        for vlan in delete_vlans:
+            self.commit_vlan_delete(vlan)
+
+        # Renumber the remaining vlans (just like the switch does
+        # internally).
+        # TODO: This should probably be moved to FS726T subclass
+        if delete_vlans:
+            for i in range(0, len(self.vlans)):
+                self.vlans[i].internal_id = i + 1
+            self.max_vlan_internal_id = len(self.vlans)
+
+        if write_config:
+            self.config.write()
+
+        self.changes = []
+        self._emit('changelist_changed')
+        # Always show a finished dialog. Otherwise, if you configuration
+        # changes are made, the status window is gone so fast it feels
+        # like the changes aren't really written (and if we have real
+        # changes to commit, one extra second doesn't matter much).
+        self._emit('status_changed', "Finished committing changes...")
+        time.sleep(1)
+        self._emit('status_changed', None)
+
+    def commit_port_description_change(self, port, name):
+        """
+        Change the description of a port.
+        """
+        raise NotImplementedError()
+
+    def commit_vlan_memberships(self, vlan, memberships):
+        """
+        Change the port memberships of a vlan. memberships is a list
+        containing, for each port, in order, either Vlan.NOTMEMBER,
+        Vlan.TAGGED or Vlan.UNTAGGED.
+        """
+        raise NotImplementedError()
+
+    def commit_pvids(self, pvids):
+        """
+        Change the pvid settings of all ports. pvids is a list
+        containing, for each port, in order, the vlan dotq_id for the PVID.
+        """
+        raise NotImplementedError()
+
+    def commit_vlan_delete(self, vlan):
+        """
+        Delete the given vlan.
+        """
+        raise NotImplementedError()
+
+    def get_status(self):
+        """
+        Retrieve current status of the switch.
+        """
+        raise NotImplementedError()
 
 
 class Port(metaclass=MetaSignals):
