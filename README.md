@@ -15,7 +15,7 @@ not terribly robust or portable, but it works well enough.
 
 Dependencies
 ------------
-Python3.7, with a number of packages:
+Python3.8, with a number of packages:
 
 ```
 pip install configobj beautifulsoup4 urwid lxml

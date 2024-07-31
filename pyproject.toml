@@ -8,11 +8,13 @@ packages = [{include = "vlan_admin"}]
 repository = "https://github.com/matthijskooijman/netgear-vlan-admin"
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.8"
 configobj = "^5.0"
 beautifulsoup4 = "^4.4"
 urwid = "^2.0"
 lxml = "^4.0"
+
+snimpy = {version = "^1.0", optional = true}
 
 [build-system]
 requires = ["poetry-core"]
@@ -20,3 +22,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 vlan-admin = "vlan_admin.main:main"
+
+[tool.poetry.extras]
+snmp = ["snimpy"]
