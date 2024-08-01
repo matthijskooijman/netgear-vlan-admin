@@ -241,6 +241,29 @@ class FS726T(Switch):
                 sys.stderr.write('Ignoring unknown table row: %s = %s\n' % (key, value))
 
         #####################################
+        # Parse PVID information
+        #####################################
+        h1 = soup.find(string="IEEE 802.1Q PVID Table").parent
+        table = h1.findNext("table")
+
+        rows = table.findAll('tr')
+
+        # The top row is the header (but nobody bothered putting it
+        # in a thead, of course).
+        pvid_rows = rows[1:]
+
+        pvids = {}
+
+        for row in pvid_rows:
+            tds = row.findAll('td')
+            if (tds):
+                # Each row contains info for four ports, so iterate them
+                for port_tds in (tds[0:2], tds[2:4], tds[4:6], tds[6:8]):
+                    (num, pvid) = [td.text.strip() for td in port_tds]
+                    if num:
+                        pvids[int(num)] = int(pvid)
+
+        #####################################
         # Parse port information
         #####################################
         h1 = soup.find(string="PORT Status").parent
@@ -269,6 +292,7 @@ class FS726T(Switch):
                 for port_tds in (tds[0:5], tds[5:10]):
                     (num, speed_setting, flow_control, link_status, description) = [td.text.strip() for td in port_tds]
                     assert len(self.ports) == int(num) - 1, "Switch ports are not numbers consecutively?"
+                    pvid = pvids[int(num)]
 
                     port = Port(
                         self, int(num),
@@ -277,6 +301,7 @@ class FS726T(Switch):
                         flow_control=flow_control,
                         link_status=link_status,
                         description=description,
+                        pvid=pvid,
                     )
                     self.ports.append(port)
 
@@ -323,29 +348,6 @@ class FS726T(Switch):
                     sys.stderr.write('Ignoring unknown vlan/port status: %s \n' % text)
 
         self.max_vlan_internal_id = len(self.vlans)
-
-        #####################################
-        # Parse PVID information
-        #####################################
-        h1 = soup.find(string="IEEE 802.1Q PVID Table").parent
-        table = h1.findNext("table")
-
-        rows = table.findAll('tr')
-
-        # The top row is the header (but nobody bothered putting it
-        # in a thead, of course).
-        pvid_rows = rows[1:]
-
-        for row in pvid_rows:
-            tds = row.findAll('td')
-            if (tds):
-                # Each row contains info for four ports, so iterate them
-                for port_tds in (tds[0:2], tds[2:4], tds[4:6], tds[6:8]):
-                    (num, pvid) = [td.text.strip() for td in port_tds]
-                    if num:
-                        # We set the internal value here, to prevent a
-                        # change being generated in the changelist.
-                        self.ports[int(num) - 1]._pvid = int(pvid)
 
     def remove_html_tags(self, data):
         p = re.compile(r'<.*?>')

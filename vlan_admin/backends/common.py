@@ -283,7 +283,7 @@ class Port(metaclass=MetaSignals):
         """
         emit_signal(self, name, self, *args)
 
-    def __init__(self, switch, num, description, **kwargs):
+    def __init__(self, switch, num, description, pvid, **kwargs):
         """
         Represents a vlan, consisting of an internal id (used to
         identify the vlan in the switch), the 802.11q id associated with
@@ -294,7 +294,7 @@ class Port(metaclass=MetaSignals):
 
         # TODO: Maybe editable attributes should be generalized?
         self._description = description
-        self._pvid = None  # Should be set afterwards
+        self._pvid = pvid
 
         self.__dict__.update(kwargs)
 
