@@ -132,6 +132,10 @@ class FS726T(Switch):
 
         self.request("/cgi/portdetail=%s" % (port.num - 1), data, "Committing port %d description..." % (port.num))
 
+    def commit_vlan_description_change(self, vlan, description):
+        self.config['vlan_names']['vlan%d' % vlan.dotq_id] = description
+        self.config.write()
+
     def commit_vlan_memberships(self, vlan, memberships):
         status = "Committing vlan %d memberships..." % (vlan.dotq_id)
         # If no internal id is present yet, assign the next one. Calling
@@ -176,6 +180,10 @@ class FS726T(Switch):
             ('vid_mem', ''),
         ]
         self.request("/cgi/setvid=%s" % (vlan.internal_id), data, "Deleting vlan %d..." % (vlan.dotq_id))
+
+        # Remove the name from the config
+        self.config['vlan_names'].pop('vlan%d' % vlan.dotq_id, None)
+        self.config.write()
 
     def get_status(self):
         soup = bs4.BeautifulSoup(

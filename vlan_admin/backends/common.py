@@ -108,8 +108,6 @@ class Switch(metaclass=MetaSignals):
 
         self._emit('status_changed', "Committing changes...")
 
-        write_config = False
-
         # Maps a vlan to a dict that maps port to (newvalue, oldvalue)
         # tuples. Undefined elements default to the empty dict.
         memberships = collections.defaultdict(dict)
@@ -127,8 +125,7 @@ class Switch(metaclass=MetaSignals):
             if isinstance(change, PortDescriptionChange):
                 self.commit_port_description_change(change.what, change.how)
             elif isinstance(change, VlanNameChange):
-                self.config['vlan_names']['vlan%d' % change.what.dotq_id] = change.how
-                write_config = True
+                self.commit_vlan_description_change(change.what, change.how)
             elif isinstance(change, PortPVIDChange):
                 # This port must be added to the vlan new PVID in the
                 # first pass (before setting the PVIDs)
@@ -146,9 +143,6 @@ class Switch(metaclass=MetaSignals):
                 memberships[change.what]
             elif isinstance(change, DeleteVlanChange):
                 delete_vlans.append(change.what)
-                # Remove the name from the config
-                self.config['vlan_names'].pop('vlan%d' % change.what.dotq_id, None)
-                write_config = True
             else:
                 assert False, "Unknown change type? (%s)" % (type(change))
 
@@ -226,9 +220,6 @@ class Switch(metaclass=MetaSignals):
                 self.vlans[i].internal_id = i + 1
             self.max_vlan_internal_id = len(self.vlans)
 
-        if write_config:
-            self.config.write()
-
         self.changes = []
         self._emit('changelist_changed')
         # Always show a finished dialog. Otherwise, if you configuration
@@ -242,6 +233,12 @@ class Switch(metaclass=MetaSignals):
     def commit_port_description_change(self, port, name):
         """
         Change the description of a port.
+        """
+        raise NotImplementedError()
+
+    def commit_vlan_description_change(self, vlan, description):
+        """
+        Change the description of a vlan.
         """
         raise NotImplementedError()
 
