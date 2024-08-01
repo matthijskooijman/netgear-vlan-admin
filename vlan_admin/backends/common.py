@@ -16,7 +16,6 @@ class Switch(metaclass=MetaSignals):
         self.dotq_vlans = {}
         self.config = config
         self.changes = []
-        self.max_vlan_internal_id = 0
 
         for column in self.switch_attrs:
             for (label_text, attr, edit) in column:
@@ -211,14 +210,6 @@ class Switch(metaclass=MetaSignals):
         # then renumber the remaining vlans.
         for vlan in delete_vlans:
             self.commit_vlan_delete(vlan)
-
-        # Renumber the remaining vlans (just like the switch does
-        # internally).
-        # TODO: This should probably be moved to FS726T subclass
-        if delete_vlans:
-            for i in range(0, len(self.vlans)):
-                self.vlans[i].internal_id = i + 1
-            self.max_vlan_internal_id = len(self.vlans)
 
         self.changes = []
         self._emit('changelist_changed')

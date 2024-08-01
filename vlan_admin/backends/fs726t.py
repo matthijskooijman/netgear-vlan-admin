@@ -52,6 +52,7 @@ class FS726T(Switch):
     def __init__(self, address=None, password=None, config=None):
         self.address = address
         self.password = password
+        self.max_vlan_internal_id = 0
 
         super().__init__(config)
 
@@ -121,6 +122,15 @@ class FS726T(Switch):
                 sys.stderr.write("Ignoring logout error, we're probably not logged in.\n")
             else:
                 raise
+
+    def commit_all(self):
+        super().commit_all()
+
+        # Renumber the remaining vlans (just like the switch does
+        # internally).
+        for i in range(0, len(self.vlans)):
+            self.vlans[i].internal_id = i + 1
+        self.max_vlan_internal_id = len(self.vlans)
 
     def commit_port_description_change(self, port, name):
         # Do not change the order of parameters, that breaks the request :-S
