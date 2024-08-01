@@ -10,7 +10,7 @@ class CommitException(Exception):
 class Switch(metaclass=MetaSignals):
     signals = ['changelist_changed', 'details_changed', 'portlist_changed', 'vlanlist_changed', 'status_changed']
 
-    def __init__(self, config=None):
+    def __init__(self, config):
         self.ports = []
         self.vlans = []
         self.dotq_vlans = {}

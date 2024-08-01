@@ -27,11 +27,12 @@
 import io
 import os.path
 import configobj
+import importlib
+import sys
 import validate
 
 from . import log
 
-from .backends.fs726t import FS726T
 from .ui.main import Interface
 
 config_filename = os.path.expanduser("~/.config/vlan-admin.conf")
@@ -39,10 +40,43 @@ config_filename = os.path.expanduser("~/.config/vlan-admin.conf")
 # This is the structure of the config file. We apply validation to
 # make sure all sections are created, even when the config file starts
 # out empty.
+# Validation should really be model-specific, but that might not be
+# supported by configobj
 configspec = """
-[vlan_names]
+[__many__]
+    model = string()
+    address = string()
+    password = string() # fs726t only
+
+[[vlan_names]] # fs726t only
 __many__ = string()
 """
+
+models = {
+    'FS726T': ('.backends.fs726t', 'FS726T'),
+}
+
+
+def switch_constructor(section):
+    try:
+        model_name = section['model']
+    except KeyError:
+        sys.stderr.write(f"No model specified in config for section: {section.name}\n")
+        raise SystemExit
+
+    try:
+        module_name, class_name = models[model_name]
+    except KeyError:
+        sys.stderr.write(f"Invalid model in config section {section.name}: {section.backend}\n")
+        sys.stderr.write(f"Supported models are: {','.join(models.keys())}\n")
+        raise SystemExit
+
+    module = importlib.import_module(module_name, __package__)
+    constructor = getattr(module, class_name)
+
+    def create():
+        return constructor(section)
+    return create
 
 
 def main():
@@ -57,11 +91,16 @@ def main():
     )
     config.validate(validate.Validator())
 
-    # Create a new switch object
-    switch = FS726T('192.168.1.253', 'password', config)
+    switches = {}
+    for name, section in config.items():
+        switches[section.name] = switch_constructor(section)
+
+    if not switches:
+        sys.stderr.write(f"No switches configured in config file ({config_filename})\n")
+        return
 
     # Create an interface for the switch
-    ui = Interface(switch)
+    ui = Interface(switches)
     log.ui = ui
     ui.start()
 

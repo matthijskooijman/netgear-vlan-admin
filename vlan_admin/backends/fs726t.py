@@ -49,9 +49,9 @@ class FS726T(Switch):
         ('VLAN name', 'name', True),
     ]]
 
-    def __init__(self, address=None, password=None, config=None):
-        self.address = address
-        self.password = password
+    def __init__(self, config):
+        self.address = config["address"]
+        self.password = config["password"]
         self.max_vlan_internal_id = 0
 
         super().__init__(config)
@@ -147,7 +147,7 @@ class FS726T(Switch):
 
     def commit_vlan_description_change(self, vlan, description):
         self.config['vlan_names']['vlan%d' % vlan.dotq_id] = description
-        self.config.write()
+        self.config.main.write()
 
     def commit_vlan_memberships(self, vlan, memberships):
         status = "Committing vlan %d memberships..." % (vlan.dotq_id)
@@ -196,7 +196,7 @@ class FS726T(Switch):
 
         # Remove the name from the config
         self.config['vlan_names'].pop('vlan%d' % vlan.dotq_id, None)
-        self.config.write()
+        self.config.main.write()
 
     def get_status(self):
         soup = bs4.BeautifulSoup(

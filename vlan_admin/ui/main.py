@@ -32,33 +32,64 @@ class Interface(object):
         ('active_port', normal_text + ',bold', normal_bg),
     ]
 
-    def __init__(self, switch):
-        self.switch = switch
+    def __init__(self, switch_consructors):
+        self.switch = None
+        self.switch_constructors = switch_consructors
         self._overlay_widget = None
         super(Interface, self).__init__()
 
     def start(self):
-        self.create_widgets()
-
-        urwid.connect_signal(self.switch, 'status_changed', self.status_changed)
-
+        # Create this early so we can (invisibly) log while the sitch
+        # selection popup is shown and the log is persistent across
+        # switch changes.
+        self.debug = urwid.Text('')
+        # Start up with a dummy widget so we can decide on the first
+        # widget to show *inside* the loop
+        self.main_widget = urwid.Filler(urwid.Text(""))
         self.loop = urwid.MainLoop(self.main_widget, palette=Interface.palette, unhandled_input=self.unhandled_input)
+
         # Register this idle callback before starting the mainloop, so
         # it gets called before the idle callback inside MainLoop that
         # redraws the screen.
         self.loop.event_loop.enter_idle(self.check_focus)
         self.loop.screen.run_wrapper(self.run)
 
+    def select_switch(self, constructor):
+        if self.switch:
+            self.switch.do_logout()
+
+        self.switch = constructor()
+        self.create_widgets()
+        self.overlay_widget = None
+        urwid.connect_signal(self.switch, 'status_changed', self.status_changed)
+
+        # Get switch status
+        self.switch.get_status()
+
     def check_focus(self):
         """
         Check which matrix cell has the current focus, and update the
         VLAN and Port details sections to reflect the current focus.
         """
-        for w in self.main_widget.base_widget.get_focus_widgets():
-            if w.base_widget is self.matrix:
-                self.fill_details(self.switch.port_attrs, self.port_widgets, self.matrix.focus_port)
-                self.fill_details(self.switch.vlan_attrs, self.vlan_widgets, self.matrix.focus_vlan)
-                break
+        if self.switch:
+            for w in self.main_widget.base_widget.get_focus_widgets():
+                if w.base_widget is self.matrix:
+                    self.fill_details(self.switch.port_attrs, self.port_widgets, self.matrix.focus_port)
+                    self.fill_details(self.switch.vlan_attrs, self.vlan_widgets, self.matrix.focus_vlan)
+                    break
+
+    def select_switch_popup(self):
+        body = [urwid.Text("Select switch to manage"), urwid.Divider()]
+
+        def select_switch(button, constructor):
+            self.select_switch(constructor)
+
+        for name, constructor in self.switch_constructors.items():
+            button = urwid.Button(name)
+            urwid.connect_signal(button, "click", select_switch, constructor)
+            body.append(urwid.AttrMap(button, None, focus_map="reversed"))
+
+        self.overlay_widget = urwid.ListBox(urwid.SimpleFocusListWalker(body))
 
     def create_widgets(self):
         self.port_widgets = {}
@@ -87,7 +118,6 @@ class Interface(object):
         ])
         bottom = TopLine(bottom, 'Details')
 
-        self.debug = urwid.Text('')
         dbg = TopLine(self.debug, 'Debug')
 
         self.changelist = urwid.Text('')
@@ -164,10 +194,10 @@ class Interface(object):
         self.loop.draw_screen()
 
     def run(self):
-        self.loop.draw_screen()
-
-        # Get switch status
-        self.switch.get_status()
+        if len(self.switch_constructors) == 1:
+            self.select_switch(next(iter(self.switch_constructors.values())))
+        else:
+            self.select_switch_popup()
 
         log("Starting mainloop")
         self.loop.run()
@@ -281,6 +311,8 @@ class Interface(object):
                 self.switch.commit_all()
             except CommitException as e:
                 self.show_popup(str(e))
+        elif key in ['f10', 'o', 'O']:
+            self.select_switch_popup()
         else:
             log("Unhandled keypress: %s" % str(key))
 
