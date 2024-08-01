@@ -61,9 +61,6 @@ class Interface(object):
                 break
 
     def create_widgets(self):
-        self.header = header = urwid.Text("Connected to %s" % self.switch.address, align='center')
-        header = urwid.AttrMap(header, 'header')
-
         self.port_widgets = {}
         self.vlan_widgets = {}
         self.switch_widgets = {}
@@ -77,7 +74,12 @@ class Interface(object):
 
         fill_switch_details(self.switch)
 
-        switch_details = TopLine(switch_details, title="Connected switch")
+        switch_details = TopLine(switch_details, title="")
+
+        def update_header(switch):
+            switch_details.set_title("Connected to %s" % self.switch)
+        update_header(self.switch)
+        urwid.connect_signal(self.switch, 'details_changed', update_header)
 
         bottom = urwid.Columns([
             port_details,

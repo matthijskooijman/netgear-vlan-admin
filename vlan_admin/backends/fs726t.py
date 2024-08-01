@@ -56,6 +56,9 @@ class FS726T(Switch):
 
         super().__init__(config)
 
+    def __str__(self):
+        return f"{self.__class__.__name__} at {self.address}"
+
     def request(self, path, data=None, status=None, auto_login=True):
         if status:
             self._emit('status_changed', status)
