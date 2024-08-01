@@ -26,7 +26,6 @@
 
 import io
 import os.path
-import pickle
 import configobj
 import validate
 
@@ -36,12 +35,6 @@ from .backends.fs726t import FS726T
 from .ui.main import Interface
 
 config_filename = os.path.expanduser("~/.config/vlan-admin.conf")
-
-# Some machinery to load a cached version of the settings, to speed up
-# debugging.
-write = False
-load = False
-
 
 # This is the structure of the config file. We apply validation to
 # make sure all sections are created, even when the config file starts
@@ -64,26 +57,11 @@ def main():
     )
     config.validate(validate.Validator())
 
-    if load:
-        # Load the switch object from a debug file
-        f = open('switch.dump', 'rb')
-        switch = pickle.load(f)
-        switch.config.reload()
-    else:
-        # Create a new switch object
-        switch = FS726T('192.168.1.253', 'password', config)
-
-        if write:
-            # Get the status now, since it seems the even handlers interfere
-            # with the pickling.
-            switch.get_status()
-
-            # Dump the switch object
-            f = open('switch.dump', 'wb')
-            pickle.dump(switch, f)
+    # Create a new switch object
+    switch = FS726T('192.168.1.253', 'password', config)
 
     # Create an interface for the switch
-    ui = Interface(switch, not load)
+    ui = Interface(switch)
     log.ui = ui
     ui.start()
 

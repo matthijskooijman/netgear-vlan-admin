@@ -32,9 +32,8 @@ class Interface(object):
         ('active_port', normal_text + ',bold', normal_bg),
     ]
 
-    def __init__(self, switch, status_on_start):
+    def __init__(self, switch):
         self.switch = switch
-        self.status_on_start = status_on_start
         self._overlay_widget = None
         super(Interface, self).__init__()
 
@@ -166,10 +165,7 @@ class Interface(object):
         self.loop.draw_screen()
 
         # Get switch status
-        if self.status_on_start:
-            self.switch.get_status()
-        else:
-            self.status_changed(None, None)
+        self.switch.get_status()
 
         log("Starting mainloop")
         self.loop.run()
