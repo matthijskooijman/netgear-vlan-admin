@@ -18,19 +18,9 @@ class Switch(metaclass=MetaSignals):
         self.changes = []
         self.max_vlan_internal_id = 0
 
-        self.product = None
-        self.firmware_version = None
-        self.protocol_version = None
-        self.ip_config = None
-        self.ip_config = None
-        self.ip_address = None
-        self.ip_netmask = None
-        self.ip_gateway = None
-        self.mac_address = None
-        self.hostname = None
-        self.location = None
-        self.login_timeout = None
-        self.uptime = None
+        for column in self.switch_attrs:
+            for (label_text, attr, edit) in column:
+                setattr(self, attr, None)
 
         super().__init__()
 
@@ -293,7 +283,7 @@ class Port(metaclass=MetaSignals):
         """
         emit_signal(self, name, self, *args)
 
-    def __init__(self, switch, num, speed, speed_setting, flow_control, link_status, description):
+    def __init__(self, switch, num, description, **kwargs):
         """
         Represents a vlan, consisting of an internal id (used to
         identify the vlan in the switch), the 802.11q id associated with
@@ -301,13 +291,12 @@ class Port(metaclass=MetaSignals):
         """
         self.switch = switch
         self.num = num
-        self.speed = speed
-        self.speed_setting = speed_setting
-        self.flow_control = flow_control
-        self.link_status = link_status
-        self._description = description
 
+        # TODO: Maybe editable attributes should be generalized?
+        self._description = description
         self._pvid = None  # Should be set afterwards
+
+        self.__dict__.update(kwargs)
 
         super(Port, self).__init__()
 
@@ -336,8 +325,7 @@ class Port(metaclass=MetaSignals):
     up = property(lambda self: self.link_status != 'Down')
 
     def __repr__(self):
-        return u"Port %s: %s (speed: %s, speed setting: %s, flow control: %s, link status = %s)" % (
-            self.num, self.description, self.speed, self.speed_setting, self.flow_control, self.link_status)
+        return u"Port %s: %s" % (self.num, self.description)
 
 
 class Vlan(metaclass=MetaSignals):
@@ -356,7 +344,7 @@ class Vlan(metaclass=MetaSignals):
         """
         emit_signal(self, name, self, *args)
 
-    def __init__(self, switch, internal_id, dotq_id, name):
+    def __init__(self, switch, internal_id, dotq_id, name, **kwargs):
         """
         Represents a vlan, consisting of an internal id (used to
         identify the vlan in the switch), the 802.11q id associated with
@@ -368,6 +356,8 @@ class Vlan(metaclass=MetaSignals):
         # Map a Port object to either NOTMEMBER, TAGGED or UNTAGGED
         self.ports = {}
         self._name = name
+
+        self.__dict__.update(kwargs)
 
     def set_port_membership(self, port, membership):
         """

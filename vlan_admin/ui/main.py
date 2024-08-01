@@ -32,41 +32,6 @@ class Interface(object):
         ('active_port', normal_text + ',bold', normal_bg),
     ]
 
-    # (Label, attribute, editable?)
-    port_attrs = [[
-        ('Port number', 'num', False),
-        ('Description', 'description', True),
-        ('Port speed', 'speed', False),
-        ('Configured speed', 'speed_setting', False),
-        ('Flow control', 'flow_control', False),
-        ('Link', 'link_status', False),
-        ('PVID', 'pvid', False),
-    ]]
-
-    vlan_attrs = [[
-        ('802.11q VLAN number', 'dotq_id', False),
-        ('VLAN name', 'name', True),
-    ]]
-
-    switch_attrs = [
-        [
-            ('Product', 'product', False),
-            ('Firmware version', 'firmware_version', False),
-            ('Protocol version', 'protocol_version', False),
-            ('MAC address', 'mac_address', False),
-        ], [
-            ('IP configuration', 'ip_config', False),
-            ('IP address', 'ip_address', False),
-            ('IP netmask', 'ip_netmask', False),
-            ('IP gateway', 'ip_gateway', False),
-        ], [
-            ('Hostname', 'hostname', False),
-            ('Location', 'location', False),
-            ('Login timeout', 'login_timeout', False),
-            ('Uptime', 'uptime', False),
-        ]
-    ]
-
     def __init__(self, switch, status_on_start):
         self.switch = switch
         self.status_on_start = status_on_start
@@ -92,8 +57,8 @@ class Interface(object):
         """
         for w in self.main_widget.base_widget.get_focus_widgets():
             if w.base_widget is self.matrix:
-                self.fill_details(Interface.port_attrs, self.port_widgets, self.matrix.focus_port)
-                self.fill_details(Interface.vlan_attrs, self.vlan_widgets, self.matrix.focus_vlan)
+                self.fill_details(self.switch.port_attrs, self.port_widgets, self.matrix.focus_port)
+                self.fill_details(self.switch.vlan_attrs, self.vlan_widgets, self.matrix.focus_vlan)
                 break
 
     def create_widgets(self):
@@ -103,13 +68,13 @@ class Interface(object):
         self.port_widgets = {}
         self.vlan_widgets = {}
         self.switch_widgets = {}
-        port_details = self.create_details(Interface.port_attrs, self.port_widgets)
-        vlan_details = self.create_details(Interface.vlan_attrs, self.vlan_widgets)
+        port_details = self.create_details(self.switch.port_attrs, self.port_widgets)
+        vlan_details = self.create_details(self.switch.vlan_attrs, self.vlan_widgets)
 
-        switch_details = self.create_details(Interface.switch_attrs, self.switch_widgets, True)
+        switch_details = self.create_details(self.switch.switch_attrs, self.switch_widgets, True)
 
         def fill_switch_details(switch):
-            self.fill_details(Interface.switch_attrs, self.switch_widgets, switch)
+            self.fill_details(self.switch.switch_attrs, self.switch_widgets, switch)
 
         fill_switch_details(self.switch)
 

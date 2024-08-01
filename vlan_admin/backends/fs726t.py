@@ -14,6 +14,41 @@ class LoginException(Exception):
 
 
 class FS726T(Switch):
+    # (Label, attribute, editable)
+    switch_attrs = [
+        [
+            ('Product', 'product', False),
+            ('Firmware version', 'firmware_version', False),
+            ('Protocol version', 'protocol_version', False),
+            ('MAC address', 'mac_address', False),
+        ], [
+            ('IP configuration', 'ip_config', False),
+            ('IP address', 'ip_address', False),
+            ('IP netmask', 'ip_netmask', False),
+            ('IP gateway', 'ip_gateway', False),
+        ], [
+            ('Hostname', 'hostname', False),
+            ('Location', 'location', False),
+            ('Login timeout', 'login_timeout', False),
+            ('Uptime', 'uptime', False),
+        ]
+    ]
+
+    port_attrs = [[
+        ('Port number', 'num', False),
+        ('Description', 'description', True),
+        ('Port speed', 'speed', False),
+        ('Configured speed', 'speed_setting', False),
+        ('Flow control', 'flow_control', False),
+        ('Link', 'link_status', False),
+        ('PVID', 'pvid', False),
+    ]]
+
+    vlan_attrs = [[
+        ('802.11q VLAN number', 'dotq_id', False),
+        ('VLAN name', 'name', True),
+    ]]
+
     def __init__(self, address=None, password=None, config=None):
         self.address = address
         self.password = password
@@ -235,7 +270,14 @@ class FS726T(Switch):
                     (num, speed_setting, flow_control, link_status, description) = [td.text.strip() for td in port_tds]
                     assert len(self.ports) == int(num) - 1, "Switch ports are not numbers consecutively?"
 
-                    port = Port(self, int(num), speed, speed_setting, flow_control, link_status, description)
+                    port = Port(
+                        self, int(num),
+                        speed=speed,
+                        speed_setting=speed_setting,
+                        flow_control=flow_control,
+                        link_status=link_status,
+                        description=description,
+                    )
                     self.ports.append(port)
 
         #####################################
