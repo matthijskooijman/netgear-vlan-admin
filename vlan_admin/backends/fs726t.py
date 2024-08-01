@@ -184,6 +184,10 @@ class FS726T(Switch):
 
         self.request("/cgi/pvid", data, "Committing PVID settings..")
 
+    def commit_vlan_add(self, vlan):
+        # Nothing to do, vlan is created by setting memberships
+        pass
+
     def commit_vlan_delete(self, vlan):
         # Do not change the order of parameters, that breaks the request :-S
         data = [

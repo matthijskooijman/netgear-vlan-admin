@@ -137,6 +137,7 @@ class Switch(metaclass=MetaSignals):
             elif isinstance(change, PortVlanMembershipChange):
                 memberships[change.vlan][change.port] = (change.how, change.old)
             elif isinstance(change, AddVlanChange):
+                self.commit_vlan_add(change.what)
                 # Make sure that the vlan has an entry in memberships,
                 # even if no ports need changing.
                 memberships[change.what]
@@ -245,6 +246,12 @@ class Switch(metaclass=MetaSignals):
         """
         Change the pvid settings of all ports. pvids is a list
         containing, for each port, in order, the vlan dotq_id for the PVID.
+        """
+        raise NotImplementedError()
+
+    def commit_vlan_add(self, vlan):
+        """
+        Create the given vlan.
         """
         raise NotImplementedError()
 
