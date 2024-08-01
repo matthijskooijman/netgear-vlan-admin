@@ -65,9 +65,6 @@ def main():
     log.ui = ui
     ui.start()
 
-    # When quitting, write out the configuration
-    switch.config.write()
-
     log.logfile.close()
 
 
