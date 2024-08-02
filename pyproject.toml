@@ -6,6 +6,9 @@ authors = ["Matthijs Kooijman <matthijs@stdin.nl>"]
 readme = "README.md"
 packages = [{include = "vlan_admin"}]
 repository = "https://github.com/matthijskooijman/netgear-vlan-admin"
+include = [
+    { path = "vlan_admin/snmp-mibs", format = ["sdist", "wheel"] }
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
