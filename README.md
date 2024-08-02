@@ -1,25 +1,56 @@
 netgear-vlan-admin
 ==================
 This is a simple "curses" interface (based on
-[Urwid](http://urwid.org/)) to control Netgear FS726T smart switches
+[Urwid](http://urwid.org/)) to control Netgear smart switches
 (and possibly others).
 
 The interface offers control of the VLAN configuration in a more
-convenient way, since the switch webinterface is slow and splits
-configuration over different pages.
+convenient way (but also more limited to).
 
-This tool works by scraping the switch's webinterface, so it is probably
-not terribly robust or portable, but it works well enough.
+This tool supports:
+
+ - Adding, removing and naming VLANs
+ - Setting port names
+ - Setting port vlan memberships to tagged, untagged or none.
+ - Exactly one vlan must be untagged on a port, which also sets the PVID
+   implicitlly (this is more limited than switches support, but should
+   almost always be sufficient).
+
+This tool was originally written for the FS726T switch, which only has a
+webinterface  webinterface that is slow and splits configuration over
+different pages making it cumbersome to work with. Later this tool was
+extended to support more modern (Netgear) switches as well
+
+This tool was tested on:
+ - FS726T
+ - GS324G
+
+It likely also works on other (Netgear and maybe other brand) switches
+that support SNMP and use the Q-BRIDGE-MIB (RFC 2674) SNMP bindings.
+
+The FS726T backend works by scraping the switch's webinterface, so it is probably
+not terribly robust or portable, but it works well enough. The
+SNMP backend is more robust and standards-based, so should work better
+(but might still make some switch-specific assumptions about what
+properties it supports).
 
 ![Screenshot](doc/screenshot.png)
 
 Dependencies
 ------------
-Python3.8, with a number of packages:
+This tool requires Python3.8 and a number of python packages (which are
+automatically installed by pip/poetry).
+
+In addition, to use SNMP-based switches, some additional system
+packages are needed. This was only tested on Linux, should also work on
+OSX, probably not on Windows. On Debian:
 
 ```
-pip install configobj beautifulsoup4 urwid lxml
+$ sudo apt-get install libffi-dev libsmi2-dev snmp-mibs-downloader
 ```
+
+For other systems, see the [snimpy installation
+instructions](https://snimpy.readthedocs.io/en/latest/installation.html).
 
 Installation
 ------------
@@ -28,15 +59,21 @@ a dedicated Python virtualenv and installs the `vlan_admin` and all
 dependencies into that, linking the executable into `~/.local/bin` (so
 make sure that's in your `$PATH`):
 
+```
+pipx install "vlan_admin @ git+https://github.com/matthijskooijman/netgear-vlan-admin.git"
+```
+
+To enable SNMP-based switches, add the `snmp` "extra":
 
 ```
-pipx install git+https://github.com/matthijskooijman/netgear-vlan-admin.git
+pipx install "vlan_admin[snmp] @ git+https://github.com/matthijskooijman/netgear-vlan-admin.git"
 ```
 
 Alternatively, if you have a local clone of the project, you can:
 
 ```
 pipx install /path/to/netgear-vlan-admin
+pipx install /path/to/netgear-vlan-admin[snmp]
 ```
 
 The same commands above also work with regular `pip` instead of `pipx`,
@@ -46,13 +83,35 @@ slightly more messy but is not a problem).
 
 Configuration
 -------------
-To configure the switch's IP address and password, modify
-`vlan_admin/vlan_admin.py`. Look for this line:
+Before starting this tool, create a config file called
+`~/.config/vlan-admin.conf`, adding sections for one or more switches.
+If you configure multiple switches, you can switch between them
+interactively.
 
-        switch = FS726T('192.168.1.253', 'password', config)
+For the FS726T switch, use the following section:
 
-Additionally, the tool stores vlan names in `~/.config/vlan-admin.conf`,
-since the switch itself doesn't support naming vlans.
+```
+[name-of-switch]
+model = FS726T
+address = 192.168.1.1
+password = some_password
+```
+
+When running the tool. it will add a `[[vlan_names]]` section to store
+vlan names (since the switch does not support naming vlans).
+
+For SNMP-based switches:
+
+```
+[name-of-switch]
+model = GS324T
+address = 192.168.1.1
+community = some_community
+```
+
+Supported SNMP switch models are `GS324T` and `GenericNetgearSNMP` (the
+latter might support may netgear switches, but this has not been tested
+yet).
 
 Interface
 ---------
@@ -63,6 +122,19 @@ and use "t", "u" and space to select tagged, untagged and not connected for
 each vlan/port combination.
 
 Use F11, or c to commit any pending changes and F10, or q to quit.
+
+When multiple switches are configured, use o to switch between them.
+
+SNMP MIB files
+--------------
+To allow talking to SNMP-based switches, this tool needs MIB files that
+specify the meaning of various SNMP messages. Most of these are based on
+publically available RFCs and can be downloaded from various sources,
+but most sources are missing some files, have improper filenames, etc.
+To make this tool usable out of the box, this repository contains a copy
+of the needed MIB files (see the `vlan_admin/snmp-mibs` directory for
+details). In the future (at least on Debian-bases sytems if [this bug in
+snmp-mibs-downloader](https://bugs.debian.org/1077818) is fixed).
 
 License
 -------
@@ -89,5 +161,6 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-In addition, the `snmp-mibs` directory contains MIB files with an
-unclear license, see the README.md file in that directory for details.
+In addition, the `vlan_admin/snmp-mibs` directory contains MIB files
+with an unclear license, see the README.md file in that directory for
+details.
