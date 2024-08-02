@@ -1,7 +1,13 @@
 import pathlib
 
-import snimpy.manager
-import snimpy.mib
+try:
+    import snimpy.manager
+    import snimpy.mib
+except ImportError as e:
+    import sys
+    sys.stderr.write(f"Failed to import snimpy: {e}\n")
+    sys.stderr.write("Did you install vlan_admin with the 'snmp' extra?\n")
+    raise SystemExit
 
 from .common import Port, Switch, Vlan
 
