@@ -1,0 +1,7 @@
+[flake8]
+max-line-length = 119
+ignore =
+    # ambiguous variable name (e.g. l vs I)
+    E741
+    # line break before/after operator
+    W503 W504
