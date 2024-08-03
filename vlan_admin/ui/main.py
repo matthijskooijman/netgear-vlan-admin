@@ -126,7 +126,7 @@ class Interface(object):
         self.fill_changelist(self.switch)
 
         def vlan_keypress_handler(widget, size, key):
-            if key == 'delete':
+            if key in ['delete', 'd']:
                 self.try_delete_vlan(widget.base_widget.vlan)
             else:
                 return key
