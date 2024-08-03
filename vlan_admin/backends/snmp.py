@@ -181,11 +181,14 @@ class NetgearSnmpSwitch(Switch):
         else:
             raise ValueError(f"Unsupported MAC address encoding: {mac}")
 
-        # This assumes the first entity is the chassis and has these
-        # properties
-        self.product = self.snmp.entPhysicalModelName[1]
-        self.software_version = self.snmp.entPhysicalSoftwareRev[1]
-        self.serial_number = self.snmp.entPhysicalSerialNum[1]
+        # On all tested netgear switches, the "chassis" entity contains the
+        # useful info, so look for the first chassis entity.
+        for i, cls in self.snmp.entPhysicalClass.iteritems():
+                if cls == "chassis":
+                    self.product = self.snmp.entPhysicalModelName[i]
+                    self.software_version = self.snmp.entPhysicalSoftwareRev[i]
+                    self.serial_number = self.snmp.entPhysicalSerialNum[i]
+                    break
 
         # Prefetch these values for all ports at once, which is a *lot*
         # faster than fetching them one by one in the below loop. Would
