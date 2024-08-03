@@ -69,8 +69,8 @@ def switch_constructor(section):
     try:
         module_name, class_name = models[model_name]
     except KeyError:
-        sys.stderr.write(f"Invalid model in config section {section.name}: {section.backend}\n")
-        sys.stderr.write(f"Supported models are: {','.join(models.keys())}\n")
+        sys.stderr.write(f"Invalid model in config section {section.name}: {model_name}\n")
+        sys.stderr.write(f"Supported models are: {', '.join(models.keys())}\n")
         raise SystemExit
 
     module = importlib.import_module(module_name, __package__)
