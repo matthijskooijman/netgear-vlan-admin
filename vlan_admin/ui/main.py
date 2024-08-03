@@ -313,10 +313,34 @@ class Interface(object):
                 self.show_popup(str(e))
         elif key in ['f12', 'o', 'O']:
             self.select_switch_popup()
+        elif key in ['insert']:
+            if self.switch:
+                self.add_vlan_popup()
         else:
             log("Unhandled keypress: %s" % str(key))
 
         return False
+
+    def add_vlan_popup(self):
+        def add_vlan(input):
+            try:
+                dotq_id = int(input)
+            except ValueError:
+                self.interface.show_popup("Invalid VLAN id: '%s' (not a valid number)" % input)
+                return
+
+            if dotq_id < 1 or dotq_id > 4094:
+                self.interface.show_popup(
+                    "Invalid VLAN id: '%d' (valid values range from 1 up to and including 4094)" % dotq_id)
+                return
+
+            if dotq_id in self.switch.dotq_vlans:
+                self.interface.show_popup("VLAN with id '%d' already exists" % dotq_id)
+                return
+
+            self.switch.add_vlan(dotq_id)
+
+        self.input_popup("802.1q VLAN ID?", add_vlan)
 
     def status_changed(self, obj, new_status):
         """

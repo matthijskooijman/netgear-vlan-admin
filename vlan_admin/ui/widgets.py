@@ -101,45 +101,22 @@ class PortVlanMatrix(urwid.WidgetWrap):
         ])
 
     def keypress(self, size, key):
-        def add_vlan(input):
-            try:
-                dotq_id = int(input)
-            except ValueError:
-                self.interface.show_popup("Invalid VLAN id: '%s' (not a valid number)" % input)
-                return
+        ret = super(PortVlanMatrix, self).keypress(size, key)
 
-            if dotq_id < 1 or dotq_id > 4094:
-                self.interface.show_popup(
-                    "Invalid VLAN id: '%d' (valid values range from 1 up to and including 4094)" % dotq_id)
-                return
+        # Copy the vertical focus position of the focused column to
+        # all other columns, so horizontal navigation keeps the
+        # vertical position
+        # It would be nicer to do this in a focus change callback,
+        # but it seems MonitoredFocusList does have a callback, but
+        # there can be just one callback and it is already used by
+        # Columns
+        if ret is None:
+            ports, _ = self._w.contents[1]
+            focused_vlan = ports.focus.focus_position
+            for pile, _ in ports.contents:
+                pile.focus_position = focused_vlan
 
-            if dotq_id in self.switch.dotq_vlans:
-                self.interface.show_popup("VLAN with id '%d' already exists" % dotq_id)
-                return
-
-            self.switch.add_vlan(dotq_id)
-
-        if key == 'insert':
-            self.interface.input_popup("802.1q VLAN ID?", add_vlan)
-        else:
-            ret = super(PortVlanMatrix, self).keypress(size, key)
-
-            # Copy the vertical focus position of the focused column to
-            # all other columns, so horizontal navigation keeps the
-            # vertical position
-            # It would be nicer to do this in a focus change callback,
-            # but it seems MonitoredFocusList does have a callback, but
-            # there can be just one callback and it is already used by
-            # Columns
-            if ret is None:
-                ports, _ = self._w.contents[1]
-                focused_vlan = ports.focus.focus_position
-                for pile, _ in ports.contents:
-                    pile.focus_position = focused_vlan
-
-            return ret
-
-        return None
+        return ret
 
     # Always mark ourselves as selectable, even if we are still empty at
     # initialization, since Columns and Pile cache their contents
