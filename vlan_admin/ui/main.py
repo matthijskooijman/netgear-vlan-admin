@@ -313,7 +313,7 @@ class Interface(object):
                 self.show_popup(str(e))
         elif key in ['f12', 'o', 'O']:
             self.select_switch_popup()
-        elif key in ['insert']:
+        elif key in ['insert', 'i', 'I']:
             if self.switch:
                 self.add_vlan_popup()
         else:
