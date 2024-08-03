@@ -17,8 +17,10 @@ class Interface(object):
     normal_text = 'light gray'
     untagged_text = 'light blue'
     tagged_text = 'dark red'
+    help_text = 'light gray'
     normal_bg = 'black'
     focus_bg = 'light gray'
+    help_bg = 'dark blue'
     palette = [
         ('header', 'black', 'light gray'),
         ('none', normal_text, normal_bg),
@@ -30,6 +32,7 @@ class Interface(object):
         ('untagged_focus', untagged_text, focus_bg),
         ('overlay', 'white', 'dark blue'),
         ('active_port', normal_text + ',bold', normal_bg),
+        ('help_bar', help_text, help_bg),
     ]
 
     def __init__(self, switch_consructors):
@@ -135,6 +138,18 @@ class Interface(object):
         self.matrix = PortVlanMatrix(self, self.switch, vlan_keypress_handler)
         matrix = urwid.Padding(TopLine(self.matrix, 'VLAN / Port mappings'), align='center')
 
+        help_bar = urwid.AttrMap(urwid.Padding(urwid.Columns([
+            ('pack', urwid.LineBox(urwid.Text(t))) for t in [
+                "Tab: next panel",
+                "←↓↑→/hjkl: navigate",
+                "F11/c: commit unsaved",
+                "Ins/i: create VLAN",
+                "Del/d: delete VLAN",
+                "F12/o: other switch",
+                "F10/q: quit",
+            ]
+        ], dividechars=1), align='center', width='clip'), 'help_bar')
+
         def update_matrix(switch):
             self.matrix.create_widgets()
             # Focus the matrix
@@ -144,11 +159,14 @@ class Interface(object):
         urwid.connect_signal(self.switch, 'portlist_changed', update_matrix)
         urwid.connect_signal(self.switch, 'vlanlist_changed', update_matrix)
 
-        pile = urwid.Pile([('pack', switch_details),
-                           ('pack', matrix),
-                           ('pack', bottom),
-                           ('pack', changelist),
-                           ('pack', dbg)])
+        pile = urwid.Pile([
+            ('pack', switch_details),
+            ('pack', matrix),
+            ('pack', bottom),
+            ('pack', changelist),
+            ('weight', 1, dbg),  # Give debug panel all leftover space
+            ('pack', help_bar),
+        ])
 
         def main_keypress_handler(widget, size, key):
             if key == 'tab':
@@ -164,7 +182,7 @@ class Interface(object):
             return None
 
         body = KeypressAdapter(pile, main_keypress_handler)
-        self.main_widget = urwid.Filler(body, valign='top')
+        self.main_widget = body
 
     @property
     def overlay_widget(self):
