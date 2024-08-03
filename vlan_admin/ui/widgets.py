@@ -112,17 +112,6 @@ class PortVlanMatrix(urwid.WidgetWrap):
 
         return None
 
-    # We have a fixed size
-    def sizing(self):
-        return set([urwid.FIXED])
-
-    def pack(self, size, focus=False):
-        # Calculate our fixed size
-        columns = self.vlan_header_width + len(self.switch.ports) * 4
-        # Delegate the rows calculation to the Pile
-        rows = self.rows((columns,))
-        return (columns, rows)
-
     # Always mark ourselves as selectable, even if we are still empty at
     # initialization, since Columns and Pile cache their contents
     # selectability once during init only. This might be a bug, but this
