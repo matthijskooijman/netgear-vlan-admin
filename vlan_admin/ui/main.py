@@ -311,7 +311,7 @@ class Interface(object):
                 self.switch.commit_all()
             except CommitException as e:
                 self.show_popup(str(e))
-        elif key in ['f10', 'o', 'O']:
+        elif key in ['f12', 'o', 'O']:
             self.select_switch_popup()
         else:
             log("Unhandled keypress: %s" % str(key))
