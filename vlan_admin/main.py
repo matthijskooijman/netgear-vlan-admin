@@ -55,7 +55,6 @@ __many__ = string()
 
 models = {
     'FS726T': ('.backends.fs726t', 'FS726T'),
-    'GS324T': ('.backends.snmp', 'NetgearSnmpSwitch'),
     'GenericNetgearSNMP': ('.backends.snmp', 'NetgearSnmpSwitch'),
 }
 

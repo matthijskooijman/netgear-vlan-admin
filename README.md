@@ -24,6 +24,8 @@ extended to support more modern (Netgear) switches as well
 This tool was tested on:
  - FS726T
  - GS324G
+ - GS110TP
+ - GS752TPv2
 
 It likely also works on other (Netgear and maybe other brand) switches
 that support SNMP and use the Q-BRIDGE-MIB (RFC 2674) SNMP bindings.
@@ -104,7 +106,7 @@ For SNMP-based switches using SNMP v2/v2c:
 
 ```
 [name-of-switch]
-model = GS324T
+model = GenericNetgearSNMP
 address = 192.168.1.1
 community = some_community
 ```
@@ -113,7 +115,7 @@ For SNMP-based switches using SNMPv3:
 
 ```
 [thuis]
-model = GS324T
+model = GenericNetgearSNMP
 address = 192.168.1.1
 username = some_username
 
@@ -126,16 +128,27 @@ priv = DES
 privpassword = encr_password
 ```
 
-Either authenticatino or encryption can be disabled by omitted the
+Either authentication or encryption can be disabled by omitted the
 related config lines.
 
-Supported SNMP switch models are `GS324T` and `GenericNetgearSNMP` (the
-latter might support may netgear switches, but this has not been tested
-yet).
+This code was tested with the GS324T, GS110TP and GS752v2 switches. It
+might also work with other netgear switches (almost certainly with
+different switches in the same series, probably with other Netgear
+switches, maybe even with other brand switches).
 
-For the GS324T, the v3 username is always "admin", and the password is
-the password for the webui. Also note that a password of more than 15
-characters seems to always fail on SNMPv3 on this switch.
+SNMP username
+-------------
+For all tested Netgear switches, the SNMPv3 username is always "admin", and the password is
+the password for the webui.
+
+SNMP password limitations
+-------------------------
+On the GS324T and GS110TP switches, a password of more than 15
+characters seems to always fail for authentication on SNMPv3 on this
+switch, using a password of 15 characters or shorter does work.
+
+This limitation does not seem to exist on other (newer?) switches such
+as the the GS752TPv2.
 
 Interface
 ---------
