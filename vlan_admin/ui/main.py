@@ -144,11 +144,11 @@ class Interface(object):
         urwid.connect_signal(self.switch, 'portlist_changed', update_matrix)
         urwid.connect_signal(self.switch, 'vlanlist_changed', update_matrix)
 
-        pile = urwid.Pile([('flow', switch_details),
-                           ('flow', matrix),
-                           ('flow', bottom),
-                           ('flow', changelist),
-                           ('flow', dbg)])
+        pile = urwid.Pile([('pack', switch_details),
+                           ('pack', matrix),
+                           ('pack', bottom),
+                           ('pack', changelist),
+                           ('pack', dbg)])
 
         def main_keypress_handler(widget, size, key):
             if key == 'tab':
