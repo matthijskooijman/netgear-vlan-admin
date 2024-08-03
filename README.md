@@ -100,7 +100,7 @@ password = some_password
 When running the tool. it will add a `[[vlan_names]]` section to store
 vlan names (since the switch does not support naming vlans).
 
-For SNMP-based switches:
+For SNMP-based switches using SNMP v2/v2c:
 
 ```
 [name-of-switch]
@@ -109,9 +109,33 @@ address = 192.168.1.1
 community = some_community
 ```
 
+For SNMP-based switches using SNMPv3:
+
+```
+[thuis]
+model = GS324T
+address = 192.168.1.1
+username = some_username
+
+# Enable authentication
+auth = SHA
+password = auth_password
+
+# Enable encryption
+priv = DES
+privpassword = encr_password
+```
+
+Either authenticatino or encryption can be disabled by omitted the
+related config lines.
+
 Supported SNMP switch models are `GS324T` and `GenericNetgearSNMP` (the
 latter might support may netgear switches, but this has not been tested
 yet).
+
+For the GS324T, the v3 username is always "admin", and the password is
+the password for the webui. Also note that a password of more than 15
+characters seems to always fail on SNMPv3 on this switch.
 
 Interface
 ---------

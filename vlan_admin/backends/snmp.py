@@ -68,7 +68,44 @@ class NetgearSnmpSwitch(Switch):
 
     def __init__(self, config):
         self.address = config["address"]
-        self.snmp = snimpy.manager.Manager(host=self.address, community=config["community"], version=2)
+        community = config.get("community", None)
+        username = config.get("username", None)
+        password = config.get("password", None)
+        auth = config.get("auth", None)
+        priv = config.get("priv", None)
+        privpassword = config.get("privpassword", None)
+
+        version = int(config.get("version", 3 if username is not None else 2))
+        v3_attrs = 'username', 'password', 'auth', 'priv', 'privpassword'
+
+        err = None
+        if version == 2:
+            if community is None:
+                err = f"{config.name}: for snmp version 2, community must be set in config"
+            elif any(key in config for key in v3_attrs):
+                err = f"{config.name}: for snmp version 2, {','.join(v3_attrs)} must not be set in config"
+        elif version == 3:
+            if username is None:
+                err = f"{config.name}: for snmp version 3, username must be set in config"
+            elif (auth is None) != (password is None):
+                err = f"{config.name}: for snmp version 3 with authentication, set both password and auth in config",
+            elif (priv is None) != (privpassword is None):
+                err = f"{config.name}: for snmp version 3 with encryption, set both priv and privpassword in config",
+            elif community is not None:
+                err = f"{config.name}: for snmp version 3, community must not be set in config"
+        else:
+            err = f"{config.name}: snmp version can only be 2 or 3"
+
+        if err is not None:
+            # TODO: Report error in a better way (but writing to stderr
+            # does not work)
+            raise ValueError(err)
+
+        self.snmp = snimpy.manager.Manager(
+            host=self.address, version=version, community=community,
+            secname=username, authpassword=password, authprotocol=auth,
+            privprotocol=priv, privpassword=privpassword,
+        )
 
         super().__init__(config)
 
