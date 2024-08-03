@@ -46,7 +46,7 @@ packages are needed. This was only tested on Linux, should also work on
 OSX, probably not on Windows. On Debian:
 
 ```
-$ sudo apt-get install libffi-dev libsmi2-dev snmp-mibs-downloader
+$ sudo apt-get install build-essential libpython3-dev libffi-dev libsmi2-dev snmp-mibs-downloader
 ```
 
 For other systems, see the [snimpy installation
