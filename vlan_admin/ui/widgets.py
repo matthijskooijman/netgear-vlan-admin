@@ -32,36 +32,33 @@ class PortVlanMatrix(urwid.WidgetWrap):
         self.create_widgets()
 
     def get_focus_attr(self, attrname):
-        return getattr(self._w.focus.focus.base_widget, attrname, None)
+        if self._w.focus_position == 0:
+            widget = self._w.focus.focus.base_widget
+        else:
+            widget = self._w.focus.focus.focus.base_widget
+        return getattr(widget, attrname, None)
 
     # Return the focused vlan or port
     focus_vlan = property(lambda self: self.get_focus_attr('vlan'))
     focus_port = property(lambda self: self.get_focus_attr('port'))
 
     def create_widgets(self):
-        # We build a matrix using a Pile of Columns. This allows us to
-        # properly navigate through the matrix. We can't inverse this
-        # (using a Columns of Piles), since there is no code to
-        # preserver the vertical "preferred cursor position", only
-        # for horizontal.
+        # We build a matrix using a Column of Piles, since that allows
+        # synchronized horizontal scrolling (for e.g. 48-port switches).
+        # Originally, the structure was transposed, which has the
+        # advantage that a Pile keeps the horizontal cursor position
+        # when moving focus vertically, which Columns does not do when
+        # moving horizontally, but this was instead fixed by copying the
+        # focus position to all columns in keypress() below.
 
         # Find out the maximum vlan name length, so we can make all the
         # vlan names in the first column have the same width. Ensure
         # it's always 20 characters wide.
         self.vlan_header_width = max([20] + [len(v.name) for v in self.switch.vlans]) + 10
 
-        rows = []
+        header_column = [urwid.Text("")]
 
-        # Create the header row, containing port numbers
-        row = [(self.vlan_header_width, urwid.Text(""))]
-        for port in self.switch.ports:
-            widget = urwid.Text(" %02d " % port.num)
-            if port.up:
-                widget = urwid.AttrMap(widget, 'active_port', None)
-            row.append((4, widget))
-        rows.append(urwid.Columns(row))
-
-        # Create a row for each vlan
+        # Create a header column with vlan names
         for vlan in self.switch.vlans:
             widget = urwid.Text("")
 
@@ -74,17 +71,34 @@ class PortVlanMatrix(urwid.WidgetWrap):
             # For the focus_vlan attribute
             widget.base_widget.vlan = vlan
 
-            widget = urwid.AttrMap(widget, None, 'focus')
-            row = [(self.vlan_header_width, widget)]
+            header_column.append(urwid.AttrMap(widget, None, 'focus'))
 
-            for port in self.switch.ports:
+        # Create a column for each port
+        port_columns = []
+        for port in self.switch.ports:
+            column = []
+
+            widget = urwid.Text(" %02d " % port.num)
+            if port.up:
+                widget = urwid.AttrMap(widget, 'active_port', None)
+            column.append(widget)
+
+            for vlan in self.switch.vlans:
+                widget = urwid.Text("")
+
                 widget = PortVlanWidget(self.interface, port, vlan)
-                row.append(
-                    (4, widget)
+                column.append(
+                    widget
                 )
-            rows.append(urwid.Columns(row))
+            port_columns.append((4, urwid.Pile(column)))
 
-        self._w = urwid.Pile(rows)
+        # Use two nested Columns, which causes the inner Columns with
+        # just the ports to drop ports on the left when the focus would
+        # be out of view, which keeps the vlan header name in view
+        self._w = urwid.Columns([
+            (self.vlan_header_width, urwid.Pile(header_column)),
+            urwid.Columns(port_columns),
+        ])
 
     def keypress(self, size, key):
         def add_vlan(input):
@@ -108,7 +122,22 @@ class PortVlanMatrix(urwid.WidgetWrap):
         if key == 'insert':
             self.interface.input_popup("802.1q VLAN ID?", add_vlan)
         else:
-            return super(PortVlanMatrix, self).keypress(size, key)
+            ret = super(PortVlanMatrix, self).keypress(size, key)
+
+            # Copy the vertical focus position of the focused column to
+            # all other columns, so horizontal navigation keeps the
+            # vertical position
+            # It would be nicer to do this in a focus change callback,
+            # but it seems MonitoredFocusList does have a callback, but
+            # there can be just one callback and it is already used by
+            # Columns
+            if ret is None:
+                ports, _ = self._w.contents[1]
+                focused_vlan = ports.focus.focus_position
+                for pile, _ in ports.contents:
+                    pile.focus_position = focused_vlan
+
+            return ret
 
         return None
 
