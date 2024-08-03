@@ -235,7 +235,7 @@ class Interface(object):
                     widget = urwid.Text('')
 
                 columns = urwid.Columns([
-                    ('fixed', max_label_width + 4, label),
+                    (max_label_width + 4, label),
                     widget,
                 ])
 

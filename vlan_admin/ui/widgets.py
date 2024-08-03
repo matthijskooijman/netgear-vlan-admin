@@ -53,12 +53,12 @@ class PortVlanMatrix(urwid.WidgetWrap):
         rows = []
 
         # Create the header row, containing port numbers
-        row = [('fixed', self.vlan_header_width, urwid.Text(""))]
+        row = [(self.vlan_header_width, urwid.Text(""))]
         for port in self.switch.ports:
             widget = urwid.Text(" %02d " % port.num)
             if port.up:
                 widget = urwid.AttrMap(widget, 'active_port', None)
-            row.append(('fixed', 4, widget))
+            row.append((4, widget))
         rows.append(urwid.Columns(row))
 
         # Create a row for each vlan
@@ -75,12 +75,12 @@ class PortVlanMatrix(urwid.WidgetWrap):
             widget.base_widget.vlan = vlan
 
             widget = urwid.AttrMap(widget, None, 'focus')
-            row = [('fixed', self.vlan_header_width, widget)]
+            row = [(self.vlan_header_width, widget)]
 
             for port in self.switch.ports:
                 widget = PortVlanWidget(self.interface, port, vlan)
                 row.append(
-                    ('fixed', 4, widget)
+                    (4, widget)
                 )
             rows.append(urwid.Columns(row))
 
