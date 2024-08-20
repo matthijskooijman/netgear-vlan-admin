@@ -23,9 +23,9 @@ extended to support more modern (Netgear) switches as well
 
 This tool was tested on:
  - FS726T
- - GS324G
- - GS110TP
- - GS752TPv2
+ - GS324T (firmware 1.0.0.30 and 1.0.0.43)
+ - GS110TP (firmare 5.4.2.35)
+ - GS752TPv2 (firmare 6.0.10.14)
 
 It likely also works on other (Netgear and maybe other brand) switches
 that support SNMP and use the Q-BRIDGE-MIB (RFC 2674) SNMP bindings.
@@ -138,17 +138,23 @@ switches, maybe even with other brand switches).
 
 SNMP username
 -------------
-For all tested Netgear switches, the SNMPv3 username is always "admin", and the password is
-the password for the webui.
+For older Netgear firmware versions, the SNMPv3 username is always
+"admin", and the password is the password for the webui.
+
+Newer firmware versions (e.g. 1.0.0.43 on GS324T) support creating
+specific SNMP users in the SNMPv3 configuration section and the password
+for SNMP is distinct from the password for the webui.
+
 
 SNMP password limitations
 -------------------------
-On the GS324T and GS110TP switches, a password of more than 15
+On the GS324T (firmare 1.0.0.30) and GS110TP switches (and probably also
+other switches with older firmwares), a password of more than 15
 characters seems to always fail for authentication on SNMPv3 on this
 switch, using a password of 15 characters or shorter does work.
 
-This limitation does not seem to exist on other (newer?) switches such
-as the the GS752TPv2.
+This limitation is not present in newer firmware versions (e.g. GS324T
+1.0.0.43, or GS752TPv2 6.0.10.14).
 
 Interface
 ---------
