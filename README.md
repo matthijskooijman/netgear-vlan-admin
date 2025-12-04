@@ -136,6 +136,23 @@ might also work with other netgear switches (almost certainly with
 different switches in the same series, probably with other Netgear
 switches, maybe even with other brand switches).
 
+Auth and priv algorithms
+------------------------
+Different switches (and firmware versions) support different auth and
+priv hash algorithms, this is usually selectable in the SNMP config UI.
+
+The `auth` and `priv` keys in the config set the algorithms to use.
+These are passed directly to
+[snmpy](https://github.com/vincentbernat/snimpy), so see snimpy docs or
+source a current list of supported algorithms. Version 1.0.4 of snimpy
+supports:
+
+  `auth` = `SHA`, `MD5`, `SHA224`, `SHA256`, `SHA384` or `SHA512` and
+  `priv` = `AES`, `AES128`, `AES192`, `AES256` or `3DES`.
+
+If you get the "Wrong SNMP PDU digest" message, then you might have the
+wrong auth algorithm set in your configuration.
+
 SNMP username
 -------------
 For older Netgear firmware versions, the SNMPv3 username is always
