@@ -40,7 +40,7 @@ properties it supports).
 
 Dependencies
 ------------
-This tool requires Python3.8 and a number of python packages (which are
+This tool requires Python3.9 and a number of python packages (which are
 automatically installed by pip/poetry).
 
 In addition, to use SNMP-based switches, some additional system
